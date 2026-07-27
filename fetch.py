@@ -46,6 +46,7 @@ _session.headers.update({
 })
 
 _robots: dict[str, RobotFileParser] = {}
+_robots_warned: set[str] = set()
 _last_hit: dict[str, float] = {}
 
 
@@ -57,17 +58,54 @@ def _domain(url: str) -> str:
     return urlparse(url).netloc
 
 
+def _robots_from_response(robots_url: str, status, body) -> RobotFileParser:
+    """Build a RobotFileParser from an already-fetched robots.txt response.
+
+    Pure (no network) so the status-handling policy is unit-testable.
+
+    Politeness is preserved: a real robots body (HTTP 200) is parsed and
+    OBEYED -- a `Disallow: /` still blocks the whole site. What changes is only
+    how a *blocked probe* is read. The stdlib `RobotFileParser.read()` turns a
+    401/403 on the robots.txt fetch itself into disallow-all, silently banning
+    an entire domain whenever a CDN/WAF (Cloudflare) or a corporate proxy
+    (Zscaler) 403s the probe -- even though no Disallow rule was ever served,
+    and even though the block often only targets the non-browser User-Agent the
+    stdlib used rather than ours. RFC 9309 sec 2.3.1 instead classifies any 4xx
+    as "Unavailable" -> no restrictions. We follow the RFC, but WARN once per
+    host on 401/403 so an intentional site-level block is never bypassed in
+    silence: the owner can still choose to drop the source by hand.
+    """
+    rp = RobotFileParser()
+    rp.set_url(robots_url)
+    if status == 200 and body:
+        rp.parse(body.splitlines())
+        return rp
+    if status in (401, 403):
+        dom = _domain(robots_url)
+        if dom not in _robots_warned:
+            _robots_warned.add(dom)
+            print(f"  robots: {robots_url} -> HTTP {status}: probe blocked "
+                  f"(CDN/WAF or proxy, not a Disallow rule). Treating the host "
+                  f"as UNRESTRICTED per RFC 9309; verify by hand if unsure.",
+                  flush=True)
+    # 401/403/404/other 4xx, 5xx, or unreachable (status None): no robots rules
+    # known -> assume allowed but stay slow (the per-domain throttle still runs).
+    rp.parse(["User-agent: *", "Allow: /"])
+    return rp
+
+
 def robots_for(url: str) -> RobotFileParser:
     dom = _domain(url)
     if dom not in _robots:
-        rp = RobotFileParser()
-        rp.set_url(f"{urlparse(url).scheme}://{dom}/robots.txt")
+        robots_url = f"{urlparse(url).scheme}://{dom}/robots.txt"
+        # Fetch robots.txt through get() so it uses our real USER_AGENT and the
+        # OS trust store (Zscaler-friendly) -- NOT bare urllib, whose default
+        # UA and certifi-only TLS are exactly what get the probe 403'd.
         try:
-            rp.read()
+            status, body = get(robots_url)
         except Exception:
-            # Unreachable robots.txt: assume allowed but stay slow.
-            rp.parse(["User-agent: *", "Allow: /"])
-        _robots[dom] = rp
+            status, body = None, None
+        _robots[dom] = _robots_from_response(robots_url, status, body)
     return _robots[dom]
 
 
