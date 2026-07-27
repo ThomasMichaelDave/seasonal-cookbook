@@ -12,7 +12,10 @@ when any non-aromatic produce is present, "has a hero" is effectively "has a
 seasonal produce item to score against". Recipes with none are SEASON-NEUTRAL
 (pasta carbonara), not out of season -- the planner keeps them.
 """
+from collections import Counter
+
 import config
+import courses
 import db
 import staples
 from classify import AROMATICS
@@ -73,6 +76,15 @@ def compute(conn):
         "GROUP BY s.name ORDER BY tot DESC").fetchall()
 
     s["staples"] = staples.distribution(conn)   # the planner's second axis
+
+    # course + the actual planner pool: mains that have a staple base
+    base_by_id = {rid: base for rid, _t, base, _s in staples.by_recipe(conn)}
+    s["courses"] = Counter()
+    s["mains_with_base"] = 0
+    for rid, _title, course in courses.by_recipe(conn):
+        s["courses"][course] += 1
+        if course == "main" and base_by_id.get(rid):
+            s["mains_with_base"] += 1
     return s
 
 
@@ -123,6 +135,12 @@ def render(s):
         c = s["staples"].get(base, 0)
         note = "   (no staple: salad/soup, handled separately)" if base == "none" else ""
         line(f"     {base:<8} {c:>5,}  {_pct(c, n)}{note}")
+
+    line("\nCOURSE  (mains-only planner: desserts/sides are excluded)")
+    for course in ("main", "dessert", "side"):
+        c = s["courses"].get(course, 0)
+        line(f"     {course:<8} {c:>5,}  {_pct(c, n)}")
+    line(f"  >> planner pool (mains with a staple base): {s['mains_with_base']:,}")
 
     line("\nPLANNER READINESS")
     line(f"     recipes with servings: {s['servings_known']:>5,}  {_pct(s['servings_known'], n)}"
