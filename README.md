@@ -1,162 +1,135 @@
-# Seasonal cookbook — Phase 0 spike
+# Seizoenskookboek — a seasonal cookbook for Belgium
 
-Belgian sources only for v1: **15gram.be**, **Dagelijkse Kost**, **Delhaize**.
-Seasonal backbone: **Velt seizoenskalender**.
+Scrape Belgian recipe sites, map their ingredients onto the **Velt** seasonal
+produce calendar, then generate a seasonal week of main dishes + a grocery list,
+delivered as a single standalone `cookbook.html`.
 
-## Setup (Windows)
+Personal, non-commercial, single-household project. Developed on **Windows**.
+For context and design rationale, read `CLAUDE.md` and `docs/`.
+
+---
+
+## Sources
+
+v1 is Belgian (Dutch) only. Recipe pages are fetched politely (robots.txt,
+~1 req/sec per domain) and cached; only facts are parsed out.
+
+| Website | Lang | Parser route | Notes |
+|---|---|---|---|
+| **15gram.be** | NL | native `recipe-scrapers` | ~6,000 recipes, cleanest |
+| **dagelijksekost.vrt.be** | NL | native `recipe-scrapers` | Jeroen Meus / VRT, authentic Flemish |
+| **delhaize.be** | NL | `wild` → JSON-LD → `__NEXT_DATA__` | no native scraper |
+
+Seasonal backbone: **Velt *Groente- en fruitkalender*** (2019) — 421 rows, 70
+crops, all 12 months. See `docs/velt.md`. A v2 winter-coverage survey (Indian /
+Korean / N-Chinese / Greek) is in `docs/vegan_sources.md`.
+
+---
+
+## Setup (Windows, behind a corporate proxy such as Zscaler)
 
 ```bat
 py -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
-
-set PYTHONUTF8=1
-
-py load_velt.py    :: load the seasonal calendar (offline)
-py spike.py        :: fetch + parse probe (the only networked step)
+pip install -r requirements.txt          :: truststore makes TLS trust the OS/Zscaler CA
+set PYTHONUTF8=1                          :: not optional -- else cp1252 mangles crème/maïs
+setx COOKBOOK_CONTACT "you@example.be"    :: your email, via env (not the tracked config.py)
 ```
 
-`PYTHONUTF8=1` is not optional. Without it Windows defaults to cp1252 and
-silently mangles *crème fraîche*, *knolselder* and *maïs* — you find out
-3,000 recipes later. To make it permanent: `setx PYTHONUTF8 1`.
+`PYTHONUTF8=1` and `COOKBOOK_CONTACT` are read every run; `setx` makes them
+permanent (reopen the shell afterwards).
 
-Set your contact address before your first crawl — via the environment, so you
-never edit a tracked file (which would collide on every `git pull`):
+## Building the database
+
+`cookbook.db` (gitignored) is built in these steps. Only steps 2–3 touch the
+network, and they are rate-limited by design.
 
 ```bat
-setx COOKBOOK_CONTACT "you@example.be"    :: Windows; reopen the shell after
+py load_velt.py                           :: 1. load the Velt calendar (offline)
+py crawl.py --list-only                   :: 2. sizes + ETA (reads sitemaps only)
+py crawl.py --source 15gram --limit 500   :: 3. crawl -> parse -> store (facts + method)
+py crawl.py --source dagelijksekost --limit 500
+py crawl.py --source delhaize --limit 200
+py report.py                              :: 4. coverage: hero %, staple/course mix, per-month
+py export.py                              :: 5. -> cookbook.html (standalone, offline)
 ```
 
-It rides along in the User-Agent. Runs warn if it's still unset.
+- Resumable: pages are cached, so re-running a crawl re-fetches nothing already
+  fetched. Idempotent: re-parsing never duplicates rows.
+- `py crawl.py --reparse` re-parses every cached page **offline** — use it after
+  a parser/lexicon change, or to backfill fields into an existing db.
+- `py export.py --no-instructions` writes a shareable, facts-only file.
 
-Run `py spike.py --offline` to exercise the lexicon and self-tests without
-touching the network.
+## Using it (offline, reads `cookbook.db`)
 
-## What the spike does
-
-1. Seeds 62 canonical produce items / 371 aliases from `lexicon/seasonal.py`
-2. Self-tests the diet classifier (30 cases, all passing)
-3. Reads each site's robots.txt and reports declared sitemaps
-4. Walks the sitemaps and **reports the most common path prefixes**
-5. Fetches a small sample (20 / 5 / 5) into the SQLite cache
-6. Runs every parser route, reports which one won per source
-7. Dumps every ingredient string to `dumps/ingredients.txt`
-
-**Step 7 is the point.** Read that file before writing more parser code.
-
-## Already established, so you don't have to discover it
-
-`recipe-scrapers` 15.11.0 ships **native scrapers** for both Belgian cores:
-
-| domain                  | scraper class   |
-|-------------------------|-----------------|
-| `15gram.be`             | `FifteenGram`   |
-| `dagelijksekost.vrt.be` | `DagelijkseKost`|
-| `marmiton.org`          | `Marmiton`      |
-| `bbcgoodfood.com`       | `BBCGoodFood`   |
-
-Delhaize has **no** native scraper — it's the only one that falls through to
-`wild_mode` → JSON-LD → `__NEXT_DATA__`. That's the single real unknown left,
-and the spike report tells you which route caught it.
-
-Note the URL patterns in `config.py` are **guesses**. Step 4 prints the real
-path prefixes; tighten them from that output before any full crawl.
-
-## The two lexicon problems
-
-Dutch compounds break naive matching in *both* directions:
-
-**Fake positives** — `vleestomaat` is a tomato, `eierzwam` is a chanterelle,
-`botersla` is lettuce, `pindakaas` is peanut butter. Handled by
-`SAFE_COMPOUNDS`, checked first and stripped.
-
-**Hidden positives** — `kippenbouten` hides *kip*, `roomijs` hides *room*,
-`vissticks` hides *vis*. Handled by prefix matching, which is only safe
-*because* the safe-list already ran.
-
-Diet verdicts are `vegan | vegetarian | omnivore | uncertain`. `uncertain`
-outranks `vegetarian` deliberately: an unidentified bouillon cube is a worse
-failure than a known knob of butter. `diet_allows(..., allow_uncertain=False)`
-is the switch your UI exposes.
-
-## How seasonality is emphasised
-
-A recipe is in season because of what it is **built on**, not because it
-contains an onion.
-
-- `AROMATICS` (ui, sjalot, knoflook) are never heroes
-- Title match wins outright — if the title names produce, that's the hero set
-- Otherwise bulk (≥250 g, ≥1 kg, ≥2 pieces)
-- Otherwise the single largest produce item
-- Position in the ingredient list is **not** used — sites order by use, not
-  importance, and it promoted every onion
-
-Heroes carry 3× the weight of side ingredients in `season_score`, and an
-out-of-season hero drops `hero_in_season` to False regardless of the score.
-Strictness (`field` / `greenhouse` / `storage`) is a user-facing dial.
-
-Recipes with no seasonal produce score 0.0 and should be treated by the
-planner as **season-neutral**, not out of season.
-
-## Seasonal data — loaded
-
-The Velt *Groente- en fruitkalender* (2019) is transcribed, reconciled and
-loaded: **421 rows, 70 crops, all 12 months**, fruit and vegetables split.
-
-Two things about it that shape everything downstream:
-
-**It's binary.** A crop is listed in a month or it isn't — no supply gradient,
-and **no open-field / greenhouse / storage split** (contrary to what the
-earlier source survey claimed). Rows load as `cultivation='velt'` and are
-accepted by every strictness level, so **the strictness dial is currently
-inert**. It starts working when a source with a real cultivation split is
-layered in.
-
-**Seven crops are listed all twelve months** — `aardappel`, `groene selderij`,
-`paddenstoelen`, `prei`, `rode biet`, `ui`, `wortel`. `ui` is already excluded
-as an aromatic; the rest still count, deliberately.
-
-Lexicon keys now track Velt's spelling (nine renames, old spellings kept as
-aliases). `witloof` is the single sanctioned deviation from Velt's `witlof`,
-and a test enforces that.
-
-Full notes and the refresh procedure: `docs/velt.md`.
-
-## Files
-
+```bat
+py planner.py --month 9 --diet vegetarian   :: a seasonal week of 7 mains
+py grocery.py --month 9 --diet vegetarian   :: that week's grocery list, by aisle
+py export.py                                :: the interactive standalone app
 ```
-CLAUDE.md              context for Claude Code sessions — read first
-config.py              sources, politeness, sample sizes
-db.py                  SQLite schema
-fetch.py               robots.txt, throttling, retries, HTML cache
-parse.py               4 parser routes, best-first
-classify.py            ingredient parsing, diet, hero detection, scoring
-lexicon/animal.py      meat/fish/dairy/egg + compound traps
-lexicon/seasonal.py    62 canonical produce items, NL/FR/EN aliases
-spike.py               orchestrates the fetch/parse probe
-transcribe_velt.py     Velt calendar -> CSV (auditable transcription)
-load_velt.py           CSV -> seasonality table, with reconciliation report
-tests/                 129 tests, no network required
-docs/decisions.md      why things are the way they are
-docs/research.md       source survey + legal posture
-docs/velt.md           what the Velt data is, and what it isn't
-data/velt/             the calendar CSV (PDF itself is gitignored)
-```
+
+`cookbook.html` runs entirely in the browser: month picker, diet toggle,
+household size, per-dish lock/reroll, a "restjesdag" (leftovers) mode, and the
+full recipe per dish.
+
+---
+
+## The modules
+
+**Pipeline**
+| File | Role |
+|---|---|
+| `config.py` | sources, politeness knobs, household/week size; `COOKBOOK_CONTACT` |
+| `db.py` | SQLite schema + connection + migrations |
+| `fetch.py` | polite fetching (robots, throttle, backoff), HTML cache, OS-trust-store TLS, gzip sitemaps |
+| `parse.py` | 4 parser routes, best-first; normalises instructions |
+| `persist.py` | idempotent recipe storage (shared by crawl + spike) |
+| `crawl.py` | wider crawl: discover, fetch, parse, store; `--list-only`/`--limit`/`--reparse` |
+| `spike.py` | the original Phase-0 probe (20/5/5) → `dumps/ingredients.txt` |
+| `runlog.py` | tee logging to timestamped `logs/` |
+
+**Classification** (all offline, dump-reviewable)
+| File | Role |
+|---|---|
+| `matching.py` | shared Dutch-compound token matcher (`matches`/`hit`/`strip_false_friends`) |
+| `lexicon/animal.py` | meat/fish/dairy/egg lexicon + compound traps (the veg/vegan switch) |
+| `lexicon/seasonal.py` | ~77 canonical produce items, NL/FR/EN aliases |
+| `classify.py` | ingredient parsing, diet verdict, seasonal match, hero detection, `season_score` |
+| `staples.py` | staple-base classifier: potato / rice / grain / pasta / bread |
+| `courses.py` | course filter: main vs dessert/side |
+
+**Seasonal data**
+| File | Role |
+|---|---|
+| `transcribe_velt.py` | Velt calendar → auditable CSV |
+| `load_velt.py` | CSV → `seasonality` table (+ reconciliation report) |
+
+**Planning & output**
+| File | Role |
+|---|---|
+| `season.py` | DB-backed season scoring (which mains have a hero in season this month) |
+| `planner.py` | `plan_week(month, diet, strictness, seed)` → 7 varied, in-season mains, scaled |
+| `grocery.py` | aggregate a week, scale, merge duplicates, group by aisle |
+| `report.py` | corpus coverage incl. the honest per-month in-season-mains figure |
+| `export.py` | build the standalone `cookbook.html` (data + logic inlined) |
+| `diagnose_fetch.py` | one-off TLS/sitemap diagnostic (not part of the pipeline) |
+
+---
 
 ## Tests
 
-```bash
-python -m pytest
+```bat
+py -m pytest        :: 280 tests, no network
 ```
 
-129 tests, none of which touch the network. Parser routes are tested against
-synthetic fixtures in `tests/fixtures/` — hand-written, so no third-party
-content is committed to this repo.
+Parser routes run against hand-written fixtures in `tests/fixtures/` (no
+third-party content committed). Each classifier also writes a human-readable
+dump (`dumps/staples.txt`, `courses.txt`, …) for eyeballing.
 
-`tests/diet_cases.py` is the real asset: every compound trap found in the wild
-gets a case there, and `spike.py` imports the same list for its pre-crawl
-smoke check so the two can't drift.
+## What is and isn't stored
 
-`tests/test_velt.py` guards the seasonal data: it fails loudly if a lexicon
-edit orphans a Velt crop, if two crops collapse into one canonical, or if the
-year-round set changes.
+Ingredients, quantities, servings, timings and the **source link** are facts and
+always stored. Method prose is copyrightable: for this private household it *is*
+stored and shown, but only in the **gitignored** `cookbook.db` / `cookbook.html`
+— never committed, never published. `export.py --no-instructions` gives a
+facts-only file. See `docs/decisions.md` #8 and `docs/research.md`.
