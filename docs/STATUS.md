@@ -132,14 +132,12 @@ after that.
 6. **Quantity parsing is 73%** and unit-normalisation is partial (containers like
    "bussel"/"bol"/"potje" stay unnormalised). Grocery-list aggregation will need
    a fuzzy merge and will surface more gaps.
-7. **`schema.recipes.course`** column exists but is unused; course is currently
-   computed on the fly. Decide whether to persist derived axes or keep computing.
+7. **Derived axes are computed at read time, not stored.** The unused
+   `recipes.course` column was dropped (a never-populated column lies). If v2
+   needs a persisted `cuisine`, that's a deliberate migration, not a default.
 
 ## 7. Open decisions (owner)
 
-- **Course/derived axes:** persist `staple_base`/`course`/`cuisine` as columns
-  (needs a small migration since `CREATE TABLE IF NOT EXISTS` won't alter), or
-  keep computing at read time? (Currently computed.)
 - **Planner shape:** balance courses? — decided **mains only**. Household — decided
   **scale to 2 adults + 2 kids** (kid portion fraction still to pick).
 - **Lexicon judgment calls** (`docs/vegan_sources.md`): map bare `kool`
@@ -172,7 +170,7 @@ setx COOKBOOK_CONTACT "you@example.be"  :: contact via env, not tracked config.p
 
 py load_velt.py                         :: offline: load the calendar
 python -m pytest                        :: 239 tests, offline
-py crawl.py --list-only                 :: discover sizes + ETA, no fetch
+py crawl.py --list-only                 :: sizes + ETA; reads sitemaps, no recipe pages
 py crawl.py --source 15gram --limit 500 :: polite, resumable crawl
 py report.py                            :: corpus coverage
 py staples.py & py courses.py           :: classifier dumps to eyeball

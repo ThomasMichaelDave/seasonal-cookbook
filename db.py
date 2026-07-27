@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS recipes (
     title          TEXT,
     servings       INTEGER,
     total_min      INTEGER,
-    course         TEXT,
+    -- course, staple_base and cuisine are DERIVED (courses.py / staples.py) and
+    -- computed at read time, not stored. A column that is never populated lies;
+    -- when v2 needs a persisted `cuisine`, add it as a deliberate migration.
     diet           TEXT,      -- vegan | vegetarian | omnivore | uncertain
     diet_evidence  TEXT,      -- which terms triggered it, for auditing
     parsed_at      TEXT NOT NULL,

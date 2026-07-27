@@ -21,6 +21,12 @@ def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def canonical_map(conn) -> dict:
+    """{name_nl: id} loaded once, so store_recipe doesn't SELECT per ingredient."""
+    return {r["name_nl"]: r["id"]
+            for r in conn.execute("SELECT id, name_nl FROM canonical")}
+
+
 def analyse(rec: dict):
     """rec (from parse.parse_recipe) -> (diet, evidence, parsed_ingredients).
 
@@ -39,14 +45,20 @@ def analyse(rec: dict):
     return diet, evidence, parsed
 
 
-def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed) -> int:
+def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed,
+                 canon_map=None) -> int:
     """Idempotent upsert of one recipe + its ingredient rows. Returns recipe id.
 
     Re-parsing from cache is a supported, repeated operation, so this must not
     duplicate rows or rely on lastrowid (which is 0 when an INSERT OR IGNORE is
     ignored -- the child insert would then trip the FK). Upsert the recipe,
     read its real id, clear prior ingredient rows, reinsert.
+
+    Pass `canon_map` (from canonical_map(conn)) to avoid a canonical SELECT per
+    ingredient -- ~8,800 queries over a full re-parse otherwise.
     """
+    if canon_map is None:
+        canon_map = canonical_map(conn)
     conn.execute(
         "INSERT INTO recipes(url, source_id, lang, title, servings, total_min, "
         "diet, diet_evidence, parsed_at, parser, parser_version) "
@@ -63,12 +75,7 @@ def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed) -> int
     rid = conn.execute("SELECT id FROM recipes WHERE url=?", (url,)).fetchone()["id"]
     conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))
     for i, p in enumerate(parsed):
-        cid = None
-        if p["canonical"]:
-            row = conn.execute(
-                "SELECT id FROM canonical WHERE name_nl=?", (p["canonical"],)
-            ).fetchone()
-            cid = row["id"] if row else None
+        cid = canon_map.get(p["canonical"]) if p["canonical"] else None
         conn.execute(
             "INSERT INTO recipe_ingredients(recipe_id, position, raw_text, qty, "
             "unit, ingredient_text, prep_note, canonical_id, is_hero) "

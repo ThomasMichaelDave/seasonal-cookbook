@@ -63,7 +63,7 @@ python spike.py               # the fixed 20/5/5 probe -> dumps/ingredients.txt
 
 # Wider crawl (task 4). Reuses fetch.py politeness UNCHANGED; resumable via the
 # pages cache; idempotent via persist.store_recipe. Also touches the network.
-python crawl.py --list-only               # discover, report sizes + ETA, no fetch
+python crawl.py --list-only               # sizes + ETA; reads sitemaps, no recipe pages
 python crawl.py --source 15gram --limit 500
 python crawl.py --all --limit 300         # 300 per source
 python crawl.py --source delhaize --yes   # whole source (--yes clears the size gate)

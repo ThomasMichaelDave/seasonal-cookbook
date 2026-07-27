@@ -17,7 +17,7 @@ costs no network for anything already fetched. Parsing is idempotent
 Stores FACTS ONLY (see persist.py / docs/research.md): never instruction text.
 
 Usage:
-    py crawl.py --list-only                 # discover + report sizes + ETA, no fetch
+    py crawl.py --list-only                 # sizes + ETA; reads sitemaps, no recipe pages
     py crawl.py --source 15gram --limit 500 # an explicit --limit needs no --yes
     py crawl.py --all --limit 300           # 300 from each source
     py crawl.py --source delhaize --yes     # whole (unbounded) source
@@ -111,7 +111,9 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
     if not matched:
         log("  !! nothing matched. Check url_patterns / sitemap by hand.")
         return Counter()
-    report_prefixes(name, matched)
+    # report prefixes over ALL discovered urls, not just matched: the point is to
+    # see the patterns you're MISSING, which the matched set can't show.
+    report_prefixes(name, all_urls)
 
     targets = matched[:limit] if limit else matched
     cached = already_cached(conn, targets)
@@ -121,9 +123,12 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
 
     if list_only:
         return Counter()
+    if n_new > BIG_RUN:
+        # surface the size of any large run, even an explicitly --limit'd one
+        log(f"  NOTE: {n_new:,} live requests, {fmt_eta(n_new)} at ~1 req/sec/domain.")
     if _needs_confirmation(limit, n_new, assume_yes):
-        log(f"  this whole-source run is {n_new:,} live requests ({fmt_eta(n_new)}). "
-            f"Add --limit N to bound it, or --yes to crawl the whole source.")
+        log(f"  this whole-source run is unbounded. Add --limit N to bound it, "
+            f"or --yes to crawl the whole source.")
         return Counter()
 
     # enqueue into the frontier so status is tracked
@@ -134,6 +139,7 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
     conn.commit()
 
     results = Counter()
+    cmap = persist.canonical_map(conn)             # once, not per ingredient
     t0 = time.monotonic()
     for i, url in enumerate(targets, 1):
         html = fetch.fetch_into_cache(conn, url)   # polite; cached -> no network
@@ -145,7 +151,8 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
                 results["parse_failed"] += 1
             else:
                 diet, ev, parsed = persist.analyse(rec)
-                persist.store_recipe(conn, url, sid, cfg["lang"], rec, diet, ev, parsed)
+                persist.store_recipe(conn, url, sid, cfg["lang"], rec, diet, ev,
+                                     parsed, canon_map=cmap)
                 results[rec["parser"]] += 1
         if i % 20 == 0:
             conn.commit()
@@ -168,7 +175,8 @@ def main():
     ap.add_argument("--limit", type=int, default=None,
                     help="max recipes per source (default: no cap).")
     ap.add_argument("--list-only", action="store_true",
-                    help="discover + report sizes and ETA, fetch nothing.")
+                    help="discover from sitemaps + report sizes/ETA; fetches "
+                         "sitemaps only, no recipe pages.")
     ap.add_argument("--yes", action="store_true",
                     help="crawl a whole (unbounded) source even if it is a large "
                          "run. Not needed when --limit is given.")

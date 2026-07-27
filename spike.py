@@ -154,6 +154,7 @@ def probe(conn, name, urls, source_id, lang, dump):
         return Counter()
 
     results = Counter()
+    cmap = persist.canonical_map(conn)
     log(f"  fetching + parsing {len(urls)} pages...")
     for url in urls:
         html = fetch.fetch_into_cache(conn, url)
@@ -173,7 +174,8 @@ def probe(conn, name, urls, source_id, lang, dump):
         # (crawl.py) use exactly the same idempotent storage. Keep the dump
         # writing here -- that is the probe's whole reason for existing.
         diet, evidence, parsed = persist.analyse(rec)
-        persist.store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed)
+        persist.store_recipe(conn, url, source_id, lang, rec, diet, evidence,
+                             parsed, canon_map=cmap)
 
         heroes = [p["canonical"] for p in parsed if p.get("is_hero") and p["canonical"]]
         dump.write(f"\n{'='*78}\n{name} | {rec.get('title')}\n{url}\n")
