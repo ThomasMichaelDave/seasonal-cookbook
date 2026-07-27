@@ -95,3 +95,11 @@ def test_vleesbroodje_with_potato_is_potato_not_bread():
 def test_parelcouscous_title_is_grain():
     ings = [{"ingredient_text": "parelcouscous", "qty": 100, "unit": "g"}]
     assert classify_staple("Parelcouscous met chorizo en tzatziki", ings) == "grain"
+
+
+def test_sandwich_is_bread_but_sushi_sandwich_is_rice():
+    assert classify_staple("Pork sandwich met uiensaus en witte kool", []) == "bread"
+    assert classify_staple("Komkommersandwich met geitenkaas", []) == "bread"
+    # 'sushi' resolves to rice before 'sandwich' is considered
+    ings = [{"ingredient_text": "gekookte sushirijst", "qty": 150, "unit": "g"}]
+    assert classify_staple("Sushi sandwich", ings) == "rice"

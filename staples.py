@@ -50,7 +50,7 @@ STAPLE_TERMS = {
     },
     "rice": {
         "rijst", "basmati", "risotto", "risottorijst", "paella", "jasmijnrijst",
-        "zilvervliesrijst", "sushirijst", "pandanrijst", "arborio",
+        "zilvervliesrijst", "sushirijst", "sushi", "pandanrijst", "arborio",
     },
     "grain": {
         "couscous", "parelcouscous", "bulgur", "quinoa", "boekweit", "gierst",
@@ -135,7 +135,9 @@ def _title_base(title: str) -> str | None:
         return nb
     flat = deaccent(norm(title or ""))
     for tok in tokens(flat):                       # distinctive forms, anywhere
-        if "pizza" in tok or "burger" in tok:
+        # substring so Dutch compounds are caught: rundsburger, pompoenpizza,
+        # komkommersandwich. 'sushi sandwich' is already rice (checked above).
+        if "pizza" in tok or "burger" in tok or "sandwich" in tok:
             return "bread"
         if any(tok.startswith(p) for p in TITLE_BREAD_STRONG):
             return "bread"
