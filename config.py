@@ -88,6 +88,12 @@ SOURCES = {
         "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
         "parser": "wild",                 # no native scraper -> wild_mode/JSON-LD
     },
+    "plantyou": {
+        "base_url": "https://plantyou.com",
+        "lang": "en",
+        "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
+        "parser": "wild",                 # no native scraper -> wild_mode/JSON-LD
+    },
 }
 
 # Spike sample sizes: small on purpose. The point is to learn, not to harvest.
