@@ -41,6 +41,9 @@ SOURCES = {
         "base_url": "https://dagelijksekost.vrt.be",
         "lang": "nl",
         "url_patterns": [r"/gerechten/", r"/recept"],
+        # /gerechten/zoeken is the search/listing page, not a recipe -- it
+        # matched the pattern and was the lone parse_failed in the first crawl.
+        "url_excludes": [r"/gerechten/zoeken"],
         "parser": "recipe_scrapers",      # native scraper: DagelijkseKost
     },
     "delhaize": {
