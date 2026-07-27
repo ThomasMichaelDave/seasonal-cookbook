@@ -56,6 +56,38 @@ SOURCES = {
         # robots.txt disallows */search/* and */search?* -- never enqueue those
         "url_excludes": [r"/search"],
     },
+
+    # --- v2: incidentally-vegan winter crawl (docs/vegan_sources.md) ---------
+    # The survey's three starters, chosen for BELGIAN WINTER coverage (witloof,
+    # spruiten, boerenkool, pastinaak, knolselderij...) rather than vegan
+    # volume. English-language, so no new language layer -- but the produce
+    # lexicon still needs the transliterated-Hindi / romanised-Korean+Japanese
+    # ALIAS PASS, and `recipes` needs a `cuisine` COLUMN, before any crawl.
+    # Both prerequisites are listed in CLAUDE.md; adding the entries here does
+    # not crawl -- crawl.py / spike.py are the only things that touch the net.
+    #
+    # url_patterns below are UNVERIFIED GUESSES (these are WordPress food blogs
+    # with recipe posts at the site root). Tighten each from the real sitemap
+    # prefixes -- run `py check_source.py <a recipe url>` and `crawl.py
+    # --list-only --source <name>` first, exactly as for the v1 sources.
+    "vegrecipesofindia": {
+        "base_url": "https://www.vegrecipesofindia.com",
+        "lang": "en",
+        "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
+        "parser": "recipe_scrapers",      # native scraper (per survey)
+    },
+    "redhousespice": {
+        "base_url": "https://redhousespice.com",
+        "lang": "en",
+        "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
+        "parser": "recipe_scrapers",      # native scraper, Northern Chinese
+    },
+    "miakouppa": {
+        "base_url": "https://www.miakouppa.com",
+        "lang": "en",
+        "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
+        "parser": "wild",                 # no native scraper -> wild_mode/JSON-LD
+    },
 }
 
 # Spike sample sizes: small on purpose. The point is to learn, not to harvest.

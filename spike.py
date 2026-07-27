@@ -258,7 +258,12 @@ def _run(conn, logfile):
 
     log("\n[3] discovery")
     plan = {}
+    # Spike is the v1 fixed 20/5/5 probe; its scope is exactly SPIKE_SAMPLE.
+    # v2 sources (config.SOURCES without a spike sample) are excluded here on
+    # purpose -- they're crawled via crawl.py once their prerequisites are done.
     for name, cfg in config.SOURCES.items():
+        if name not in config.SPIKE_SAMPLE:
+            continue
         sid = db.upsert_source(conn, name, cfg["base_url"], cfg["lang"])
         plan[name] = (discover(conn, name, cfg, sid), sid, cfg["lang"])
 
