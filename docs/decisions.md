@@ -171,15 +171,27 @@ silently merging two different seasons.
 
 ---
 
-## 8. Store facts, not prose
+## 8. Facts are the default; instructions are a personal-use exception
 
-`recipes` has no instructions column. Ingredients, quantities, timings,
-servings and the source URL are facts; the instruction text, headnotes and
-photographs are the copyrightable expression.
+Ingredients, quantities, timings, servings and the source URL are facts; the
+instruction text, headnotes and photographs are the copyrightable expression.
+The facts path is unchanged and is what any *shareable* artifact contains
+(`export.py --no-instructions`).
 
-For personal, non-commercial use this keeps the project on comfortable ground
-in the EU. See `docs/research.md` for the reasoning and the relevant case law.
-If this ever goes public or commercial, that changes and needs a real look.
+**Amended (owner decision): for this private, single-household cookbook, the
+method prose IS now stored and shown**, so the family has the full recipe
+offline. Guardrails that keep this on comfortable EU personal-use ground:
+
+- Instructions live only in `recipes.instructions` in **`cookbook.db`, which is
+  gitignored** — copyrighted prose is never committed to the repo.
+- The generated **`cookbook.html` is gitignored too** and is for household use;
+  do not publish or share it. `export.py --no-instructions` produces a
+  facts-only file if you ever need a shareable one.
+- Source URL and attribution stay on every recipe.
+
+If this ever goes public or commercial, revert to facts-only and get an opinion
+on database rights and photo licensing. See `docs/research.md` for the case law
+(*Levola Hengelo*, EU database right) that this exception leans on.
 
 ---
 

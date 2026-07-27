@@ -167,6 +167,43 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
     return results
 
 
+def reparse(conn):
+    """Re-parse every cached page and re-store. Offline -- reads `pages`, never
+    the network. Idempotent (persist.store_recipe). Backfills instructions and
+    picks up any parser/lexicon improvement."""
+    logfile = runlog.start("reparse")
+    try:
+        cmap = persist.canonical_map(conn)
+        rows = conn.execute(
+            "SELECT p.url url, p.html html, s.id sid, s.lang lang "
+            "FROM pages p JOIN frontier f ON f.url=p.url "
+            "JOIN sources s ON f.source_id=s.id").fetchall()
+        log("=" * 78)
+        log(f"REPARSE (offline) — {len(rows):,} cached pages")
+        log("=" * 78)
+        done = Counter()
+        for i, r in enumerate(rows, 1):
+            rec = parse_recipe(r["html"], r["url"])
+            if not rec:
+                done["parse_failed"] += 1
+                continue
+            diet, ev, parsed = persist.analyse(rec)
+            persist.store_recipe(conn, r["url"], r["sid"], r["lang"], rec,
+                                 diet, ev, parsed, canon_map=cmap)
+            done[rec["parser"]] += 1
+            if i % 100 == 0:
+                conn.commit()
+                log(f"    {i:,}/{len(rows):,}")
+        conn.commit()
+        n_instr = conn.execute(
+            "SELECT COUNT(*) c FROM recipes WHERE instructions IS NOT NULL").fetchone()["c"]
+        log(f"done: {', '.join(f'{k}={v:,}' for k,v in done.most_common()) or 'nothing'}")
+        log(f"recipes with instructions now: {n_instr:,}")
+    finally:
+        log(f"\nfull log: {logfile}")
+        runlog.stop()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Wider recipe crawl (polite, resumable).")
     ap.add_argument("--source", action="append", choices=list(config.SOURCES),
@@ -180,14 +217,20 @@ def main():
     ap.add_argument("--yes", action="store_true",
                     help="crawl a whole (unbounded) source even if it is a large "
                          "run. Not needed when --limit is given.")
+    ap.add_argument("--reparse", action="store_true",
+                    help="re-parse every cached page (no network) and re-store. "
+                         "Use after a parser change or to backfill instructions.")
     args = ap.parse_args()
-
-    names = args.source or (list(config.SOURCES) if (args.all or args.list_only) else None)
-    if not names:
-        ap.error("pick --source NAME, --all, or --list-only.")
 
     conn = db.connect()
     db.init(conn)
+    if args.reparse:
+        reparse(conn)
+        return
+
+    names = args.source or (list(config.SOURCES) if (args.all or args.list_only) else None)
+    if not names:
+        ap.error("pick --source NAME, --all, --list-only, or --reparse.")
 
     logfile = runlog.start("crawl")
     try:

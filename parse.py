@@ -38,6 +38,34 @@ def _servings(value):
     return int(digits[0]) if digits else None
 
 
+def _instructions_text(value):
+    """Normalise instructions (str | list | HowToStep/HowToSection dicts) to text.
+
+    recipe_scrapers already returns a newline-joined string; JSON-LD's
+    recipeInstructions can be a string, a list of strings, or a list of
+    {@type: HowToStep|HowToSection, text|itemListElement}. Flatten to plain text.
+    """
+    if not value:
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    parts = []
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                for sub in item.get("itemListElement") or []:
+                    if isinstance(sub, str):
+                        parts.append(sub)
+                    elif isinstance(sub, dict) and isinstance(sub.get("text"), str):
+                        parts.append(sub["text"])
+    cleaned = [p.strip() for p in parts if p and p.strip()]
+    return "\n".join(cleaned) or None
+
+
 def has_native_scraper(url: str) -> bool:
     host = re.sub(r"^https?://", "", url).split("/")[0].lower()
     host = host[4:] if host.startswith("www.") else host
@@ -210,5 +238,6 @@ def parse_recipe(html: str, url: str) -> dict | None:
         out = route()
         if out and out.get("ingredients"):
             out["parser_version"] = RS_VERSION
+            out["instructions"] = _instructions_text(out.get("instructions"))
             return out
     return None

@@ -107,9 +107,13 @@ the local cache. If you need new fixtures, ask — don't fetch them.
 per-domain throttle, backoff, retry cap. It is not optional and not slow by
 accident.
 
-**Store facts, not prose.** Ingredients, quantities, timings, servings, source
-URL. Do NOT persist recipe instruction text, headnotes, or images — those are
-the copyrightable parts. `recipes` has no instructions column on purpose.
+**Facts are the default; instructions are a personal-use exception.**
+Ingredients, quantities, timings, servings, source URL are facts. Method prose
+is copyrightable — for this private single-household cookbook it IS now stored
+(`recipes.instructions`) and shown, but ONLY in the gitignored `cookbook.db` /
+`cookbook.html`; never commit prose to the repo, never publish the HTML.
+`export.py --no-instructions` produces a shareable facts-only file. Still do NOT
+store headnotes or images. See `docs/decisions.md` #8.
 
 **Don't commit `cookbook.db`.** It's gitignored. It contains cached third-party
 HTML and is regenerable.

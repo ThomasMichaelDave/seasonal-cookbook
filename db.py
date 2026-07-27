@@ -60,7 +60,12 @@ CREATE TABLE IF NOT EXISTS recipes (
     diet_evidence  TEXT,      -- which terms triggered it, for auditing
     parsed_at      TEXT NOT NULL,
     parser         TEXT,      -- recipe_scrapers | wild | jsonld | nextdata
-    parser_version TEXT
+    parser_version TEXT,
+    -- Method prose. Copyrightable, so it is deliberately OFF the facts-only path
+    -- (docs/decisions.md #8): stored only for PERSONAL/household use, only in the
+    -- gitignored cookbook.db, and never committed or published. See the migration
+    -- in init() which backfills this column on an older db.
+    instructions   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS recipe_ingredients (
@@ -131,6 +136,11 @@ def connect(path=DB_PATH):
 
 def init(conn):
     conn.executescript(SCHEMA)
+    # Migration: an older cookbook.db (created before instructions) needs the
+    # column added -- CREATE TABLE IF NOT EXISTS won't alter an existing table.
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
+    if "instructions" not in cols:
+        conn.execute("ALTER TABLE recipes ADD COLUMN instructions TEXT")
     conn.commit()
 
 

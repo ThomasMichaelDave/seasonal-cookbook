@@ -9,7 +9,7 @@ FAKE = {
     "total_min": 30,
     "parser": "wild",
     "parser_version": "test",
-    "instructions": "SECRET PROSE THAT MUST NEVER BE STORED",
+    "instructions": "Snijd de prei.\nBak de steak.\nServeer.",
 }
 
 
@@ -53,7 +53,9 @@ def test_analyse_diet_and_hero():
     assert prei["is_hero"] is True                      # named in the title
 
 
-def test_instructions_are_never_stored():
+def test_instructions_are_stored_for_personal_use():
+    # decisions.md #8: method prose is stored for personal/household use, in the
+    # gitignored db only (never committed). Ingredient FACTS are unaffected.
     conn = _fresh_db()
     sid = db.upsert_source(conn, "d", "https://d", "nl")
     url = "https://d/r/2"
@@ -62,8 +64,5 @@ def test_instructions_are_never_stored():
     diet, ev, parsed = persist.analyse(FAKE)
     persist.store_recipe(conn, url, sid, "nl", FAKE, diet, ev, parsed)
 
-    cols = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
-    assert "instructions" not in cols
-    blob = " ".join(
-        str(x) for row in conn.execute("SELECT * FROM recipes") for x in row)
-    assert "SECRET PROSE" not in blob
+    row = conn.execute("SELECT instructions FROM recipes WHERE url=?", (url,)).fetchone()
+    assert row["instructions"] == FAKE["instructions"]

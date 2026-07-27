@@ -40,7 +40,7 @@ def is_flexible(title: str) -> bool:
     return hit(tokens(title or ""), FLEX_TITLE)
 
 
-def build_data(conn) -> dict:
+def build_data(conn, include_instructions=True) -> dict:
     # {canonical: [months it is in season]} from the Velt table
     seasonality = {}
     for name, mp in season.load_seasonality(conn).items():
@@ -53,8 +53,8 @@ def build_data(conn) -> dict:
 
     recipes = {}
     for row in conn.execute(
-        "SELECT r.id rid, r.title, r.url, r.diet, r.servings, s.name src, "
-        "ri.ingredient_text itext, ri.raw_text raw, ri.qty, ri.unit, "
+        "SELECT r.id rid, r.title, r.url, r.diet, r.servings, r.instructions instr, "
+        "s.name src, ri.ingredient_text itext, ri.raw_text raw, ri.qty, ri.unit, "
         "c.name_nl canon, ri.is_hero hero "
         "FROM recipes r JOIN sources s ON r.source_id=s.id "
         "JOIN recipe_ingredients ri ON ri.recipe_id=r.id "
@@ -69,6 +69,8 @@ def build_data(conn) -> dict:
             "source": row["src"], "diet": row["diet"] or "uncertain",
             "servings": row["servings"], "base": base_by.get(rid),
             "flexible": is_flexible(row["title"]),
+            # method prose, personal/household use only (see decisions.md #8)
+            "instructions": (row["instr"] if include_instructions else None),
             "heroes": [], "produce": set(), "ingredients": []})
         text = row["itext"] or row["raw"] or ""
         r["ingredients"].append({
@@ -107,13 +109,15 @@ def render_html(data: dict) -> str:
 def main():
     ap = argparse.ArgumentParser(description="Export a standalone cookbook.html.")
     ap.add_argument("-o", "--out", default=str(config.BASE_DIR / "cookbook.html"))
+    ap.add_argument("--no-instructions", action="store_true",
+                    help="omit method prose -> a shareable, facts-only file.")
     args = ap.parse_args()
     conn = db.connect()
     db.init(conn)
     if not conn.execute("SELECT COUNT(*) c FROM seasonality").fetchone()["c"]:
         print("seasonality empty -- run `python load_velt.py` first.")
         return
-    data = build_data(conn)
+    data = build_data(conn, include_instructions=not args.no_instructions)
     if not data["recipes"]:
         print("no mains in the db -- run crawl.py first.")
         return
@@ -166,6 +170,16 @@ HTML_TEMPLATE = r"""<!doctype html>
   .dish.scraps { border-color:var(--accent2); }
   .chip.scraps { color:var(--accent2); font-weight:600; }
   .scrapline { margin-top:.3rem; font-size:.8rem; color:var(--accent2); }
+  details.recept { margin-top:.5rem; border-top:1px dashed var(--line); padding-top:.4rem; }
+  details.recept summary { cursor:pointer; color:var(--accent); font-size:.85rem;
+                           font-weight:600; list-style:none; }
+  details.recept summary::-webkit-details-marker { display:none; }
+  details.recept summary:before { content:"▸ "; }
+  details.recept[open] summary:before { content:"▾ "; }
+  details.recept ul.ing { margin:.5rem 0; padding-left:1.1rem; font-size:.9rem; }
+  details.recept .method p { margin:.45rem 0; font-size:.92rem; }
+  details.recept .bron { font-size:.78rem; margin-top:.4rem; }
+  details.recept .bron a { color:var(--muted); }
   .dish .top { display:flex; align-items:baseline; gap:.5rem; }
   .num { color:var(--muted); font-variant-numeric:tabular-nums; }
   .dish a { color:inherit; text-decoration:none; font-weight:600; }
@@ -343,6 +357,20 @@ const adultEquiv = () => (+$("adults").value) + (+$("kids").value)*M.household.k
 const fmtQ = n => { const r=Math.round(n*10)/10; return r%1===0 ? r.toFixed(0) : String(r); };
 const esc = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const dietNL = d => ({vegan:"veganistisch",vegetarian:"vegetarisch",omnivore:"met vlees/vis",uncertain:"onzeker"}[d]||d);
+// full ingredient list + method, collapsed. Only when instructions were exported.
+function recept(r){
+  const ings = r.ingredients.map(ing=>{
+    const q = ing.qty==null ? "" : `${fmtQ(ing.qty)} ${ing.unitDisplay||""} `.replace(/\s+/g," ");
+    return `<li>${esc(q)}${esc(ing.text)}</li>`; }).join("");
+  const steps = (r.instructions||"").split(/\n+/).filter(s=>s.trim())
+    .map(s=>`<p>${esc(s)}</p>`).join("");
+  const method = steps ? `<div class="method">${steps}</div>` : "";
+  if(!r.instructions && !ings) return "";
+  return `<details class="recept"><summary>Recept</summary>`+
+    `<ul class="ing">${ings}</ul>${method}`+
+    `<div class="bron"><a href="${esc(r.url)}" target="_blank" rel="noopener">bron: ${esc(r.source||"")}</a></div>`+
+    `</details>`;
+}
 
 function grocery(week){
   const ae=adultEquiv(), items={};
@@ -400,7 +428,7 @@ function draw(){
       `<span style="margin-left:auto">${lockBtn}${repl}</span></div>`+
       `<div class="meta"><span class="chip base">${esc(p.r.base||"vrij")}</span>${scrapsChip}${tag}`+
       `<span>hero: ${esc(heroes)}</span><span>${dietNL(p.r.diet)}</span>`+
-      `<span>×${fmtQ(scale)} (${p.r.servings}p)</span></div>`+ scrapsLine;
+      `<span>×${fmtQ(scale)} (${p.r.servings}p)</span></div>`+ scrapsLine + recept(p.r);
     d.querySelector(".lock").onclick=()=>toggleLock(i);
     const rb=d.querySelector(".replace"); if(rb) rb.onclick=()=>replaceOne(i);
     w.appendChild(d);
@@ -427,9 +455,9 @@ function drawGrocery(){
     o.value=m; o.textContent=M.months[m]; if(m===now)o.selected=true; ms.appendChild(o); }
   $("adults").value=M.household.adults; $("kids").value=M.household.kids;
   $("tagline").textContent=`${M.nMains} hoofdgerechten · Belgisch · Velt-seizoenskalender`;
-  $("note").innerHTML=`Gegenereerd ${M.generated}. Volledig offline. `+
+  $("note").innerHTML=`Gegenereerd ${M.generated}. Volledig offline, voor eigen huishoudelijk gebruik. `+
     `Vergrendel (🔒) gerechten die je wilt houden en klik "Vernieuw open plekken". `+
-    `Seizoensdata is binair (Velt). Recepten linken naar de bron; alleen feiten, geen bereidingen.`;
+    `Klik "Recept" voor de volledige bereiding. Seizoensdata is binair (Velt).`;
   $("newweek").onclick=newWeek;
   $("refresh").onclick=refillOpen;
   // month/diet/uncertain change the pool fundamentally -> fresh week;

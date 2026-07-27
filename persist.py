@@ -59,18 +59,21 @@ def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed,
     """
     if canon_map is None:
         canon_map = canonical_map(conn)
+    # instructions are method prose -- personal/household use only, gitignored db
+    # (docs/decisions.md #8). Facts (ingredients/qty/servings) are unaffected.
     conn.execute(
         "INSERT INTO recipes(url, source_id, lang, title, servings, total_min, "
-        "diet, diet_evidence, parsed_at, parser, parser_version) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+        "diet, diet_evidence, parsed_at, parser, parser_version, instructions) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(url) DO UPDATE SET "
         "  lang=excluded.lang, title=excluded.title, servings=excluded.servings, "
         "  total_min=excluded.total_min, diet=excluded.diet, "
         "  diet_evidence=excluded.diet_evidence, parsed_at=excluded.parsed_at, "
-        "  parser=excluded.parser, parser_version=excluded.parser_version",
+        "  parser=excluded.parser, parser_version=excluded.parser_version, "
+        "  instructions=excluded.instructions",
         (url, source_id, lang, rec.get("title"), rec.get("servings"),
          rec.get("total_min"), diet, "\n".join(evidence), _now(),
-         rec["parser"], rec.get("parser_version")),
+         rec["parser"], rec.get("parser_version"), rec.get("instructions")),
     )
     rid = conn.execute("SELECT id FROM recipes WHERE url=?", (url,)).fetchone()["id"]
     conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))

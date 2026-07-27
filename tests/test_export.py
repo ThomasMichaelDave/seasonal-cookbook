@@ -21,16 +21,31 @@ def test_only_mains_with_servings_exported():
     assert data["meta"]["nMains"] == len(data["recipes"])
 
 
-def test_recipe_shape_is_facts_only():
+def test_recipe_shape():
     data = _data()
     r = next(r for r in data["recipes"] if r["title"].startswith("Pompoen"))
     assert r["base"] == "rice" and "pompoen" in r["heroes"]
     assert r["url"] and r["diet"] and r["servings"]
     assert "pompoen" in r["produce"] and r["flexible"] is False   # waste/scraps fields
+    assert "instructions" in r                                    # key present (None here)
     ing = r["ingredients"][0]
     assert set(ing) == {"text", "qty", "unit", "unitDisplay", "canonical", "aisle"}
-    # no instruction/prose field anywhere
-    assert "instructions" not in r and "instruction" not in json.dumps(r).lower()
+
+
+def test_instructions_included_by_default_and_omittable():
+    conn = db.connect(":memory:")
+    db.init(conn)
+    seed_corpus(conn)
+    # give one recipe method prose
+    rid = conn.execute("SELECT id FROM recipes WHERE title LIKE 'Pompoen%'").fetchone()[0]
+    conn.execute("UPDATE recipes SET instructions=? WHERE id=?", ("Kook de rijst.\nRoer.", rid))
+    conn.commit()
+
+    withi = {r["id"]: r for r in export.build_data(conn)["recipes"]}
+    assert withi[rid]["instructions"] == "Kook de rijst.\nRoer."
+    # a shareable, facts-only export omits the prose
+    without = {r["id"]: r for r in export.build_data(conn, include_instructions=False)["recipes"]}
+    assert without[rid]["instructions"] is None
 
 
 def test_produce_excludes_aromatics_and_flexible_flag():
