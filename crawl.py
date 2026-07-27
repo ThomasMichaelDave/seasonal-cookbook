@@ -192,6 +192,9 @@ def main():
         log("WIDER CRAWL" + ("  (list-only)" if args.list_only else ""))
         log("=" * 78)
         log(f"logging to {logfile}")
+        if config.CONTACT_IS_PLACEHOLDER and not args.list_only:
+            log("!! CONTACT is still the placeholder. Set COOKBOOK_CONTACT to your "
+                "email before crawling (politeness). See config.py.")
 
         for name in names:
             crawl_source(conn, name, config.SOURCES[name], args.limit,

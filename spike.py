@@ -250,6 +250,10 @@ def _run(conn, logfile):
         log("\n--offline: stopping before any network access.")
         return
 
+    if config.CONTACT_IS_PLACEHOLDER:
+        log("\n!! CONTACT is still the placeholder. Set COOKBOOK_CONTACT to your "
+            "email before fetching (politeness). See config.py.")
+
     log("\n[3] discovery")
     plan = {}
     for name, cfg in config.SOURCES.items():

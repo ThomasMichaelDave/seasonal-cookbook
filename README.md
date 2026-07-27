@@ -20,7 +20,14 @@ py spike.py        :: fetch + parse probe (the only networked step)
 silently mangles *crème fraîche*, *knolselder* and *maïs* — you find out
 3,000 recipes later. To make it permanent: `setx PYTHONUTF8 1`.
 
-Set `CONTACT` in `config.py` to a real address before your first crawl.
+Set your contact address before your first crawl — via the environment, so you
+never edit a tracked file (which would collide on every `git pull`):
+
+```bat
+setx COOKBOOK_CONTACT "you@example.be"    :: Windows; reopen the shell after
+```
+
+It rides along in the User-Agent. Runs warn if it's still unset.
 
 Run `py spike.py --offline` to exercise the lexicon and self-tests without
 touching the network.

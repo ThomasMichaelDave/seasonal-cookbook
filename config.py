@@ -1,4 +1,5 @@
 """Central configuration for the seasonal cookbook pipeline."""
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -7,9 +8,15 @@ DUMP_DIR = BASE_DIR / "dumps"
 LOG_DIR = BASE_DIR / "logs"     # per-run tee logs from spike.py / crawl.py
 
 # --- Politeness -------------------------------------------------------------
-# Put a real contact address here. It is the single cheapest thing you can do
-# to stay on the right side of a site operator who notices your traffic.
-CONTACT = "you@example.be"
+# A real contact address is the single cheapest thing you can do to stay on the
+# right side of a site operator who notices your traffic. Set it via the
+# COOKBOOK_CONTACT environment variable so you never have to edit this tracked
+# file (which would collide on every `git pull`):
+#     Windows:  setx COOKBOOK_CONTACT "you@example.be"   (then reopen the shell)
+#     bash:     export COOKBOOK_CONTACT="you@example.be"
+_PLACEHOLDER = "you@example.be"
+CONTACT = os.environ.get("COOKBOOK_CONTACT", _PLACEHOLDER)
+CONTACT_IS_PLACEHOLDER = CONTACT == _PLACEHOLDER
 USER_AGENT = f"SeasonalCookbookBot/0.1 (personal, non-commercial; {CONTACT})"
 
 REQUEST_DELAY = 1.5      # seconds between requests to the SAME domain

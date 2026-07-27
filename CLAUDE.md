@@ -79,7 +79,12 @@ py -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 set PYTHONUTF8=1
+setx COOKBOOK_CONTACT "you@example.be"   :: contact addr via env, not config.py
 ```
+
+`COOKBOOK_CONTACT` keeps your email out of the tracked `config.py`, so it never
+collides on `git pull`. `cookbook.db`, `dumps/` and `logs/` are gitignored, so a
+pull never touches your crawl data.
 
 ## Rules for working in this repo
 
