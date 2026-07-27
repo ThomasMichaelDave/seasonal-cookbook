@@ -31,12 +31,17 @@ SWEET_SUBSTR = {
 SWEET_PREFIX = {"koekje", "gebakje", "taartje"}      # token-initial
 
 AMBIG_BAKE = {"taart", "tarte", "vlaai"}             # savoury OR sweet
+# ONE-SIDED savoury markers only. Anything shared by sweet AND savoury bakes
+# (ei, boter, room, bloem, melk, suiker) discriminates nothing and must NOT be
+# here -- 'ei' in particular sent every dessert bake back to 'main'. Matched by
+# whole token (or word-initial for >=4 chars), never substring: 'ui' as a raw
+# substring lives inside 'suiker' and reclassified every sweet tart as savoury.
 SAVOURY_MARKERS = {
-    "kaas", "prei", "aardappel", "ui", "ajuin", "spek", "zalm", "ham", "vis",
-    "champignon", "gehakt", "prosciutto", "spinazie", "tomaat", "courgette",
-    "broccoli", "kip", "groente", "look", "mosterd", "witloof", "warmoes",
-    "chorizo", "pens", "worst", "bacon", "feta", "geitenkaas", "mozzarella",
-    "ei", "gerookte", "pesto",
+    "kaas", "prei", "aardappel", "ui", "uien", "uitje", "uitjes", "ajuin",
+    "ajuinen", "spek", "zalm", "ham", "vis", "champignon", "gehakt",
+    "prosciutto", "spinazie", "tomaat", "courgette", "broccoli", "kip",
+    "groente", "look", "mosterd", "witloof", "warmoes", "chorizo", "pens",
+    "worst", "bacon", "feta", "geitenkaas", "mozzarella", "gerookte", "pesto",
 }
 # 'crumble' is savoury too (chorizocrumble, pankocrumble) -- dessert only with a
 # fruity/sweet context word.
@@ -48,30 +53,44 @@ DESSERT_CONTEXT = {
 SIDE_SUBSTR = {"loempia", "frietjes uit", "kroketten uit", "bitterbal",
                "smoothie", "milkshake", "cocktail", "mocktail"}
 
+MIN_PREFIX = 4
+# Tokens ending in -ijs that are NOT ice cream. 'radijs' is the important one:
+# a Velt crop (Mar-Oct), so miscategorising it silently hides a whole salad
+# season from the planner.
+NOT_ICE = {"prijs", "radijs", "wijs", "grijs", "reis"}
+
+
+def _matches(tok: str, term: str) -> bool:
+    return tok == term or (len(term) >= MIN_PREFIX and tok.startswith(term))
+
+
+def _hit(toks, markers) -> bool:
+    return any(_matches(tok, m) for tok in toks for m in markers)
+
 
 def _is_ice(tok: str) -> bool:
+    if tok in NOT_ICE:
+        return False
     return tok in {"ijs", "ijsje", "roomijs", "softijs", "schepijs"} or \
-           (tok.endswith("ijs") and len(tok) > 4 and tok != "prijs")
+           (tok.endswith("ijs") and len(tok) > 4)
 
 
 def classify_course(title: str, ingredient_texts=()) -> str:
     t = deaccent(norm(title or ""))
-    toks = tokens(t)
-    joined = t + " " + deaccent(norm(" ".join(ingredient_texts or ())))
+    title_toks = tokens(t)
+    all_toks = title_toks + tokens(deaccent(norm(" ".join(ingredient_texts or ()))))
 
     if any(s in t for s in SWEET_SUBSTR):
         return "dessert"
-    if any(_is_ice(tok) for tok in toks):
+    if any(_is_ice(tok) for tok in all_toks):
         return "dessert"
-    if any(tok.startswith(p) for tok in toks for p in SWEET_PREFIX):
+    if any(tok.startswith(p) for tok in title_toks for p in SWEET_PREFIX):
         return "dessert"
-    if "crumble" in t and any(d in joined for d in DESSERT_CONTEXT):
+    if "crumble" in t and _hit(all_toks, DESSERT_CONTEXT):
         return "dessert"
 
     if any(b in t for b in AMBIG_BAKE):
-        if any(m in joined for m in SAVOURY_MARKERS):
-            return "main"
-        return "dessert"
+        return "main" if _hit(all_toks, SAVOURY_MARKERS) else "dessert"
 
     if any(s in t for s in SIDE_SUBSTR):
         return "side"
