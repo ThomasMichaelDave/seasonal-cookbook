@@ -8,6 +8,9 @@ cookbook.db-shm
 # spike output
 dumps/
 
+# generated standalone app (regenerable from the db via export.py)
+cookbook*.html
+
 # per-run tee logs (crawl.py / spike.py)
 logs/
 

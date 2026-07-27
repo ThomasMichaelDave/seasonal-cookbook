@@ -29,9 +29,9 @@ three sources; wider crawler now exists.
 | Staple-base + course classifiers (`staples.py`, `courses.py`) | done — dump-reviewed |
 | Season filter + menu planner (`season.py`, `planner.py`) | done — `plan_week(month, diet, strictness)`, 7 mains, base variety, hero-in-season, household scaling |
 | Grocery list (`grocery.py`) | done — aggregate week, scale, merge duplicates, group by aisle, "naar smaak" for unquantified |
-| UI | not started — decided: single-file browser app |
+| UI (`export.py` → `cookbook.html`) | done — 100% standalone single file; planner + grocery run client-side, offline |
 
-Nothing is blocked. Current step: the single-file browser app.
+Nothing is blocked. v1 is feature-complete. Next: v2 winter crawl (`docs/vegan_sources.md`).
 
 ## The Velt data — read `docs/velt.md` before touching seasonality
 
@@ -74,6 +74,7 @@ python staples.py                         # staple-base dump -> dumps/staples.tx
 python courses.py                         # course dump -> dumps/courses.txt
 python planner.py --month 9 --diet vegetarian   # a seasonal week of 7 mains
 python grocery.py --month 9 --diet vegetarian   # that week's grocery list, by aisle
+python export.py                                # -> cookbook.html (standalone, offline)
 ```
 
 `spike.py` (without `--offline`) and `crawl.py` are THE ONLY commands that touch
@@ -203,12 +204,14 @@ Done: ✅ **grocery list** (`grocery.py`) — aggregates the planned week, scale
 the household, merges duplicates by canonical (gele/rode ui → ui), groups by
 aisle, lists unquantified seasonings as "naar smaak".
 
-1. **Single-file browser app** (decided UI): export a facts-only JSON of recipes
-   (no instructions — copyright), run the planner + grocery list client-side.
-   Month picker, diet/strictness toggles, per-recipe reroll (change the seed),
-   source links.
-2. **Then v2** — the incidentally-vegan winter crawl (`docs/vegan_sources.md`),
-   after its prerequisites (cuisine column, alias pass).
+Done: ✅ **single-file browser app** (`export.py` → `cookbook.html`) — recipe
+facts + Velt seasonality inlined into one self-contained file; the planner and
+grocery list run in vanilla JS, fully offline. Month picker, diet toggle,
+household size, per-dish reroll, source links. Facts only (no bereidingen).
+
+1. **v2** — the incidentally-vegan winter crawl (`docs/vegan_sources.md`), after
+   its prerequisites (cuisine column, transliterated alias pass). Its payoff
+   metric is `report.py`'s per-month in-season-mains figure — watch February.
 
 Optional, once there's real recipe data: layer VLAM's low/normal/high gradient
 in as `field`/`greenhouse`/`storage` rows to make the strictness dial live.

@@ -65,7 +65,7 @@ The per-recipe axes the planner needs now all exist:
 | Season filter by month | `season.py` | **done** — DB-backed `season_score`, per-month | `test_season` |
 | Menu planner | `planner.py` | **done** — `plan_week(month, diet, strictness, seed)`, 7 mains, base variety, kid-scaling | `test_planner` |
 | Grocery list | `grocery.py` | **done** — aggregate + scale + merge by canonical + aisle grouping | `test_grocery` |
-| **UI (single-file browser app)** | — | **not started** (form decided) — next |  |
+| UI — standalone app | `export.py` | **done** — facts + seasonality inlined into one offline `cookbook.html`; planner + grocery run in-browser | `test_export` |
 
 ## 4. Corpus snapshot
 
