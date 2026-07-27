@@ -4,6 +4,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "cookbook.db"
 DUMP_DIR = BASE_DIR / "dumps"
+LOG_DIR = BASE_DIR / "logs"     # per-run tee logs from spike.py / crawl.py
 
 # --- Politeness -------------------------------------------------------------
 # Put a real contact address here. It is the single cheapest thing you can do

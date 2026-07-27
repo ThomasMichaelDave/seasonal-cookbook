@@ -8,6 +8,9 @@ cookbook.db-shm
 # spike output
 dumps/
 
+# per-run tee logs (crawl.py / spike.py)
+logs/
+
 # source data dropped in by hand
 data/velt/*.xlsx
 data/velt/*.xls

@@ -68,7 +68,9 @@ python crawl.py --source delhaize --yes   # whole source (--yes clears the size 
 ```
 
 `spike.py` (without `--offline`) and `crawl.py` are THE ONLY commands that touch
-the network. Both are rate-limited to ~1 req/sec per domain.
+the network. Both are rate-limited to ~1 req/sec per domain. Both tee their full
+output — including the final summary + diet breakdown — to a timestamped file in
+`logs/` (gitignored); the path is printed at the start and end of every run.
 
 Windows setup:
 

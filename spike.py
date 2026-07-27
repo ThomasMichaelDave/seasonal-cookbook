@@ -27,19 +27,17 @@ import config
 import db
 import fetch
 import persist
+import runlog
 from classify import classify_ingredient
 from lexicon.seasonal import rows as seasonal_rows
 from parse import parse_recipe
+from runlog import log
 
 SM_NS = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
 
 def now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def log(msg=""):
-    print(msg, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +219,19 @@ def main():
     conn = db.connect()
     db.init(conn)
 
+    logfile = runlog.start("spike")
+    try:
+        _run(conn, logfile)
+    finally:
+        log(f"\nfull log: {logfile}")
+        runlog.stop()
+
+
+def _run(conn, logfile):
     log("=" * 78)
     log("PHASE 0 SPIKE")
     log("=" * 78)
+    log(f"logging to {logfile}")
 
     log("\n[1] seeding seasonal lexicon")
     seed_lexicon(conn)

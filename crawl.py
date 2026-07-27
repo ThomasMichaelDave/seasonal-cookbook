@@ -34,8 +34,10 @@ import config
 import db
 import fetch
 import persist
+import runlog
 from parse import parse_recipe
-from spike import read_sitemap, now, log
+from runlog import log
+from spike import read_sitemap, now
 
 # Rough per-request wall time: REQUEST_DELAY + half the jitter. Only used to
 # print an ETA so a multi-hour crawl is a conscious choice, never a surprise.
@@ -178,31 +180,35 @@ def main():
 
     conn = db.connect()
     db.init(conn)
-    n_seas = conn.execute("SELECT COUNT(*) c FROM seasonality").fetchone()["c"]
-    if not n_seas:
-        log("note: seasonality table is empty -- run `python load_velt.py` so "
-            "season scoring has data. Crawling anyway.")
 
-    log("=" * 78)
-    log("WIDER CRAWL" + ("  (list-only)" if args.list_only else ""))
-    log("=" * 78)
+    logfile = runlog.start("crawl")
+    try:
+        n_seas = conn.execute("SELECT COUNT(*) c FROM seasonality").fetchone()["c"]
+        if not n_seas:
+            log("note: seasonality table is empty -- run `python load_velt.py` so "
+                "season scoring has data. Crawling anyway.")
 
-    grand = Counter()
-    for name in names:
-        grand += crawl_source(conn, name, config.SOURCES[name], args.limit,
-                              args.list_only, args.yes)
+        log("=" * 78)
+        log("WIDER CRAWL" + ("  (list-only)" if args.list_only else ""))
+        log("=" * 78)
+        log(f"logging to {logfile}")
 
-    if not args.list_only:
-        n_rec = conn.execute("SELECT COUNT(*) c FROM recipes").fetchone()["c"]
-        n_ing = conn.execute("SELECT COUNT(*) c FROM recipe_ingredients").fetchone()["c"]
-        log("\n" + "=" * 78)
-        log(f"TOTAL in db: recipes={n_rec:,}  ingredient lines={n_ing:,}")
-        for row in conn.execute(
-            "SELECT diet, COUNT(*) c FROM recipes GROUP BY diet ORDER BY c DESC"
-        ):
-            log(f"   {row['diet']:<12} {row['c']:,}")
-        log("\nNext: `python -m pytest` stays green; when you're ready, build the "
-            "season scores and the planner.")
+        for name in names:
+            crawl_source(conn, name, config.SOURCES[name], args.limit,
+                         args.list_only, args.yes)
+
+        if not args.list_only:
+            n_rec = conn.execute("SELECT COUNT(*) c FROM recipes").fetchone()["c"]
+            n_ing = conn.execute("SELECT COUNT(*) c FROM recipe_ingredients").fetchone()["c"]
+            log("\n" + "=" * 78)
+            log(f"TOTAL in db: recipes={n_rec:,}  ingredient lines={n_ing:,}")
+            for row in conn.execute(
+                "SELECT diet, COUNT(*) c FROM recipes GROUP BY diet ORDER BY c DESC"
+            ):
+                log(f"   {row['diet']:<12} {row['c']:,}")
+    finally:
+        log(f"\nfull log saved to: {logfile}")
+        runlog.stop()
 
 
 if __name__ == "__main__":
