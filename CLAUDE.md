@@ -12,21 +12,24 @@ Personal, non-commercial project. Owner is in Belgium, develops on **Windows**.
 
 ## Current state
 
-Phase 0 spike is complete and tested. Nothing has been crawled at scale yet.
+Phase 0 spike is complete and tested. First live probe has run against all
+three sources; wider crawler now exists.
 
 | Component | State |
 |---|---|
 | SQLite schema (`db.py`) | done |
-| Polite fetcher + HTML cache (`fetch.py`) | done, untested against live sites |
-| Parser routes (`parse.py`) | done, tested against fixtures only |
-| Diet classification (`classify.py`) | done, 26 cases passing |
-| Seasonal lexicon  (62 items) | done, seeded |
+| Polite fetcher + HTML cache (`fetch.py`) | done; live-tested. Uses OS trust store (Zscaler/corporate TLS) + gzip sitemaps |
+| Parser routes (`parse.py`) | done; live-confirmed — 15gram/DK native `recipe_scrapers`, Delhaize `wild` |
+| Diet classification (`classify.py`) | done, 39 cases passing (9 added from the first crawl) |
+| Seasonal lexicon  (77 items) | done, seeded |
 | Hero detection + season scoring | done, tested |
 | **Velt calendar** | **loaded — 421 rows, 70 crops, all 12 months** |
+| Recipe persistence (`persist.py`) | done — idempotent upsert, shared by spike + crawl |
+| Wider crawl (`crawl.py`) | done — polite, resumable, `--list-only`/`--limit`/`--all` |
 | Menu planner / grocery list | not started |
-| UI | not started, form undecided |
+| UI | not started — decided: single-file browser app |
 
-Nothing is blocked. The next step is running the spike against live sites.
+Nothing is blocked. Current step: run `crawl.py` wider, then build the planner.
 
 ## The Velt data — read `docs/velt.md` before touching seasonality
 
@@ -49,13 +52,23 @@ Short version, because it contradicts what the research survey said:
 ## Commands
 
 ```bash
-python -m pytest              # full suite (129 tests), no network
+python -m pytest              # full suite (152 tests), no network
 python transcribe_velt.py     # regenerate the Velt CSV from the transcription
 python load_velt.py --report  # reconciliation report, no writes
 python load_velt.py           # load Velt into the seasonality table
 python spike.py --offline     # lexicon seeding + self-checks, no network
-python spike.py               # THE ONLY COMMAND THAT TOUCHES THE NETWORK
+python spike.py               # the fixed 20/5/5 probe -> dumps/ingredients.txt
+
+# Wider crawl (task 4). Reuses fetch.py politeness UNCHANGED; resumable via the
+# pages cache; idempotent via persist.store_recipe. Also touches the network.
+python crawl.py --list-only               # discover, report sizes + ETA, no fetch
+python crawl.py --source 15gram --limit 500
+python crawl.py --all --limit 300         # 300 per source
+python crawl.py --source delhaize --yes   # whole source (--yes clears the size gate)
 ```
+
+`spike.py` (without `--offline`) and `crawl.py` are THE ONLY commands that touch
+the network. Both are rate-limited to ~1 req/sec per domain.
 
 Windows setup:
 
@@ -135,21 +148,30 @@ why they're deferred.
 
 ## Next tasks, in order
 
-1. Run `python spike.py` once, read `dumps/ingredients.txt`, tune
-   `parse_ingredient()` against what real strings actually look like
-2. Tighten `config.SOURCES[*]['url_patterns']` from the printed prefixes
-3. Confirm which parser route catches Delhaize; write a dedicated one if all
-   four routes miss
-4. Full crawl of 15gram, then Dagelijkse Kost, then Delhaize
-5. **Answer the first real question:** how many scraped recipes have a
-   seasonal hero at all? That number decides whether the planner has enough
-   to work with, or whether the lexicon needs to grow.
-6. Menu planner: pick N recipes for a week given month + diet + strictness,
-   with variety constraints
-7. Grocery list: aggregate ingredients across the week, group by aisle
+Done in the first crawl round: ✅ ran the probe and tuned `parse_ingredient()`
+against real strings; ✅ confirmed parser routes (Delhaize = `wild`); ✅ fixed
+the diet misses (steak/entrecote/sardienen/halloumi, `gehakte`), the `kl`/
+deciliter units, Delhaize trailing quantities, and the spike re-run FK crash.
+`url_patterns` verified against live sitemaps (no tightening needed yet).
+
+1. **Crawl wider** with `crawl.py` (start `--list-only` to see sizes + ETA,
+   then `--source 15gram --limit …`, working up). Watch the diet breakdown.
+2. **Answer the first real question:** how many scraped recipes have a
+   seasonal hero at all? That number decides whether the lexicon needs to grow.
+3. **Menu planner** — decided shape: a **single-file browser app**; **main
+   dishes only**, each centred on a *staple base* (potato / rice+grain / pasta
+   / bread family); servings **scale to a household of 2 adults + 2 kids**.
+   Needs a small **staple-base classifier** (potato/rice/pasta/bread) — a new
+   axis alongside the seasonal hero — which does not exist yet.
+4. **Grocery list:** aggregate ingredients across the week, group by aisle,
+   scaled to household size.
 
 Optional, once there's real recipe data: layer VLAM's low/normal/high gradient
 in as `field`/`greenhouse`/`storage` rows to make the strictness dial live.
+
+Deferred lexicon polish (Tier 3, low priority): `champignonmix` and
+`stoofselder` don't match a seasonal canonical; `edamame` wrongly matches
+`prinsessenboon`. Seasonal-signal only, not diet.
 
 ## Open questions for the owner
 

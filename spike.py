@@ -26,10 +26,8 @@ from xml.etree import ElementTree
 import config
 import db
 import fetch
-from classify import (
-    parse_ingredient, match_seasonal, classify_ingredient, classify_recipe,
-    mark_heroes,
-)
+import persist
+from classify import classify_ingredient
 from lexicon.seasonal import rows as seasonal_rows
 from parse import parse_recipe
 
@@ -172,53 +170,12 @@ def probe(conn, name, urls, source_id, lang, dump):
             continue
 
         results[rec["parser"]] += 1
-        diet, evidence = classify_recipe(rec["ingredients"])
 
-        parsed = []
-        for ing in rec["ingredients"]:
-            p = parse_ingredient(ing)
-            p["raw"] = ing
-            p["canonical"] = match_seasonal(p["ingredient_text"] or ing)
-            parsed.append(p)
-        mark_heroes(rec.get("title") or "", parsed)
-
-        # Re-parsing from cache is a supported, repeated operation (decision
-        # #1), so this must be idempotent. INSERT OR IGNORE + lastrowid is not:
-        # on a re-run the row already exists, the insert is ignored, and
-        # lastrowid points at nothing -- the child insert then trips the FK.
-        # Upsert the recipe, read its real id, and clear its prior ingredient
-        # rows before re-inserting.
-        conn.execute(
-            "INSERT INTO recipes(url, source_id, lang, title, servings, "
-            "total_min, diet, diet_evidence, parsed_at, parser, parser_version) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
-            "ON CONFLICT(url) DO UPDATE SET "
-            "  lang=excluded.lang, title=excluded.title, servings=excluded.servings, "
-            "  total_min=excluded.total_min, diet=excluded.diet, "
-            "  diet_evidence=excluded.diet_evidence, parsed_at=excluded.parsed_at, "
-            "  parser=excluded.parser, parser_version=excluded.parser_version",
-            (url, source_id, lang, rec.get("title"), rec.get("servings"),
-             rec.get("total_min"), diet, "\n".join(evidence), now(),
-             rec["parser"], rec.get("parser_version")),
-        )
-        rid = conn.execute(
-            "SELECT id FROM recipes WHERE url=?", (url,)
-        ).fetchone()["id"]
-        conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))
-        for i, p in enumerate(parsed):
-            cid = None
-            if p["canonical"]:
-                row = conn.execute(
-                    "SELECT id FROM canonical WHERE name_nl=?", (p["canonical"],)
-                ).fetchone()
-                cid = row["id"] if row else None
-            conn.execute(
-                "INSERT INTO recipe_ingredients(recipe_id, position, raw_text, qty, "
-                "unit, ingredient_text, prep_note, canonical_id, is_hero) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
-                (rid, i, p["raw"], p["qty"], p["unit"], p["ingredient_text"],
-                 p["prep_note"], cid, int(p.get("is_hero", False))),
-            )
+        # analyse + store go through persist so the probe and the wider crawl
+        # (crawl.py) use exactly the same idempotent storage. Keep the dump
+        # writing here -- that is the probe's whole reason for existing.
+        diet, evidence, parsed = persist.analyse(rec)
+        persist.store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed)
 
         heroes = [p["canonical"] for p in parsed if p.get("is_hero") and p["canonical"]]
         dump.write(f"\n{'='*78}\n{name} | {rec.get('title')}\n{url}\n")
