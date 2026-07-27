@@ -58,12 +58,12 @@ The per-recipe axes the planner needs now all exist:
 | Velt calendar | `load_velt.py` | **loaded — 421 rows, 70 crops, 12 months** | `test_velt` |
 | Wider crawler | `crawl.py` | done — polite, resumable, `--list-only`/`--limit`/`--all`, ETA, size gate | `test_crawl` |
 | Staple-base classifier | `staples.py` | done — potato/rice/grain/pasta/bread, dump-reviewed twice | `test_staples` |
-| Course filter | `courses.py` | done — main vs dessert/side | `test_courses` |
-| Corpus report | `report.py` | done — coverage, hero, staple, course, planner pool | `test_report` |
+| Course filter | `courses.py` | done — main vs dessert/side (token matching, review P1) | `test_courses` |
+| Corpus report | `report.py` | done — coverage, staple, course, per-month in-season mains | `test_report` |
 | Tee logging | `runlog.py` | done — timestamped `logs/` | `test_runlog` |
-| **Season filter by month** | — | **not started** — next step |  |
-| **Menu planner** | — | **not started** |  |
-| **Grocery list** | — | **not started** |  |
+| Season filter by month | `season.py` | **done** — DB-backed `season_score`, per-month | `test_season` |
+| Menu planner | `planner.py` | **done** — `plan_week(month, diet, strictness, seed)`, 7 mains, base variety, kid-scaling | `test_planner` |
+| **Grocery list** | — | **not started** — next |  |
 | **UI (single-file browser app)** | — | **not started** (form decided) |  |
 
 ## 4. Corpus snapshot
@@ -73,9 +73,17 @@ Delhaize 5 = **604 recipes**, 8,773 ingredient lines). `cookbook.db` is
 gitignored, so these are reported numbers, not reproducible from the repo alone.
 
 - **Diet:** omnivore 409 (68%), vegetarian 144 (24%), vegan 37 (6%), uncertain 14 (2%)
-- **Seasonal hero coverage:** 558/604 = **92%** (the gating number — high enough
-  that the lexicon does not need to grow before the planner)
-- **Season-neutral:** 46 (8%) — kept, not filtered
+- **Recipes containing seasonal produce:** 558/604 = 92%. **This is produce-word
+  presence, NOT seasonal salience** — `mark_heroes` falls back to the largest
+  produce item, so a steak whose only vegetable is "1 tomaatje ter garnering"
+  counts. It does *not* mean 92% of dinners are seasonal. (Corrected per review.)
+- **The gating number is per-month in-season MAINS**, now computed by
+  `report.py` ("IN-SEASON MAINS BY MONTH"): for each month, how many *mains*
+  have a hero actually in season. Expect it well below 92% and to vary by month;
+  **February is the one to watch** — a thin February is the signal that justifies
+  the v2 winter crawl (`docs/vegan_sources.md`), not a bug. Run `report.py` on
+  the real DB for the figure.
+- **Season-neutral:** 46 (8%) — kept, not filtered (a valid Tuesday)
 - **Staple base:** potato 152, pasta 143, bread 98, rice 81, grain 52, none 78
 - **Course:** not yet measured on the real corpus (filter added after the last
   `report.py` run) — expect ~25 of the 78 `none` to be desserts
@@ -115,9 +123,10 @@ after that.
    field/greenhouse/storage split, so all three strictness levels return the
    same result until a graded source (VLAM) is layered in. This is honest, not a
    bug — see `docs/velt.md` — but the UI dial will do nothing on day one.
-4. **Season scoring isn't wired to a month yet.** `season_score` exists and is
-   tested, but nothing yet answers "give me July's in-season mains." That's the
-   next build and the thing that makes the tool actually seasonal.
+4. **Season scoring is now wired to a month** (`season.py` + `planner.py`), and
+   the honest per-month in-season-mains figure is in `report.py`. The earlier §4
+   "92%" overstated seasonality (produce presence ≠ salience) and has been
+   corrected. **Run `report.py` on the real DB** to get the per-month numbers.
 5. **No `cuisine` column.** Fine for v1 (all Belgian), required before the v2
    crawl or the weekly menu will mix a stoofpotje and a Sichuan stir-fry blindly.
 6. **Quantity parsing is 73%** and unit-normalisation is partial (containers like

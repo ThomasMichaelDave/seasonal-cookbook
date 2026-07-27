@@ -17,6 +17,7 @@ from collections import Counter
 import config
 import courses
 import db
+import season
 import staples
 from classify import AROMATICS
 
@@ -79,13 +80,40 @@ def compute(conn):
 
     # course + the actual planner pool: mains that have a staple base
     base_by_id = {rid: base for rid, _t, base, _s in staples.by_recipe(conn)}
+    course_by_id = {}
     s["courses"] = Counter()
     s["mains_with_base"] = 0
     for rid, _title, course in courses.by_recipe(conn):
+        course_by_id[rid] = course
         s["courses"][course] += 1
         if course == "main" and base_by_id.get(rid):
             s["mains_with_base"] += 1
+
+    # THE honest gating metric (review P3): per month, how many MAINS have a
+    # hero actually in season -- not just "contains a produce word". This is the
+    # number that says whether the planner has a pool; expect it well below the
+    # produce-presence figure and to vary a lot by month.
+    s["by_month"] = in_season_mains_by_month(conn, course_by_id)
+    s["n_mains"] = s["courses"].get("main", 0)
     return s
+
+
+def in_season_mains_by_month(conn, course_by_id, strictness="greenhouse"):
+    """{month: (mains_with_hero_in_season, season_neutral_mains)} for months 1-12."""
+    ings = season.ingredients_by_recipe(conn)
+    out = {}
+    for m in range(1, 13):
+        scores = season.score_all(conn, m, strictness, ings_by_recipe=ings)
+        in_season = neutral = 0
+        for rid, (_score, hero_ok, n) in scores.items():
+            if course_by_id.get(rid) != "main":
+                continue
+            if hero_ok:
+                in_season += 1
+            elif n == 0:
+                neutral += 1
+        out[m] = (in_season, neutral)
+    return out
 
 
 def _pct(n, d):
@@ -117,11 +145,11 @@ def render(s):
     for r in s["diet"]:
         line(f"     {r['diet']:<12} {r['c']:>5,}  {_pct(r['c'], n)}")
 
-    line("\nSEASONAL HERO COVERAGE  (the gating question)")
-    line(f"     has a seasonal hero : {s['hero_recipes']:>5,}  {_pct(s['hero_recipes'], n)}")
-    line(f"     any seasonal produce: {s['produce_recipes']:>5,}  {_pct(s['produce_recipes'], n)}")
-    line(f"     season-neutral      : {s['neutral_recipes']:>5,}  {_pct(s['neutral_recipes'], n)}"
-         "   (kept by the planner, not filtered)")
+    line("\nSEASONAL PRODUCE PRESENCE  (NOT the gating number -- see per-month below)")
+    line(f"     contains seasonal produce: {s['produce_recipes']:>5,}  {_pct(s['produce_recipes'], n)}"
+         "   (a produce word is present; mark_heroes always")
+    line(f"     season-neutral (no produce): {s['neutral_recipes']:>5,}  {_pct(s['neutral_recipes'], n)}"
+         "    picks one, so this over-counts salience)")
     line("  hero coverage by source:")
     for r in s["hero_per_source"]:
         line(f"     {r['name']:<16} {r['heroed']:>5,}/{r['tot']:<5,} {_pct(r['heroed'], r['tot'])}")
@@ -141,6 +169,17 @@ def render(s):
         c = s["courses"].get(course, 0)
         line(f"     {course:<8} {c:>5,}  {_pct(c, n)}")
     line(f"  >> planner pool (mains with a staple base): {s['mains_with_base']:,}")
+
+    line(f"\nIN-SEASON MAINS BY MONTH  (the gating number; of {s['n_mains']:,} mains, "
+         "greenhouse strictness)")
+    line("     month    1   2   3   4   5   6   7   8   9  10  11  12")
+    row_hero = "     hero  " + "".join(f"{s['by_month'][m][0]:>4}" for m in range(1, 13))
+    row_neu = "     +neut " + "".join(f"{s['by_month'][m][1]:>4}" for m in range(1, 13))
+    line(row_hero)
+    line(row_neu + "   (season-neutral mains, always plannable)")
+    feb = s["by_month"][2][0]
+    line(f"  >> February in-season mains: {feb}  -- if thin, that's the v2 winter-crawl "
+         "signal, not a bug (docs/vegan_sources.md)")
 
     line("\nPLANNER READINESS")
     line(f"     recipes with servings: {s['servings_known']:>5,}  {_pct(s['servings_known'], n)}"

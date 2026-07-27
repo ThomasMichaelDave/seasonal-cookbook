@@ -57,3 +57,18 @@ def test_empty_db_is_graceful():
     s = report.compute(conn)
     assert s["n_recipes"] == 0
     report.render(s)                             # must not raise
+
+
+def test_in_season_mains_by_month_is_the_honest_metric():
+    from tests.test_planner import seed_corpus
+    conn = db.connect(":memory:")
+    db.init(conn)
+    seed_corpus(conn)
+    s = report.compute(conn)
+
+    assert set(s["by_month"]) == set(range(1, 13))
+    assert s["n_mains"] == 7                          # the dessert is not a main
+    sep, jun = s["by_month"][9][0], s["by_month"][6][0]
+    assert sep > jun                                 # September richer than June
+    # every month's in-season count is bounded by the number of mains
+    assert all(0 <= hero <= s["n_mains"] for hero, _neu in s["by_month"].values())
