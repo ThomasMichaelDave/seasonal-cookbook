@@ -23,6 +23,21 @@ import grocery
 import planner
 import season
 import staples
+from classify import AROMATICS
+from matching import tokens, hit
+
+# Dishes that absorb many/variable vegetables -- the "restjesdag" (scraps day)
+# candidates. Title-matched, so it's a fact about the dish, not a guess.
+FLEX_TITLE = {
+    "traybake", "ovenschotel", "ovenschaal", "ovengerecht", "ovenrooster",
+    "roerbak", "gewokte", "wok", "soep", "curry", "frittata", "quiche",
+    "stoofpot", "stoofpotje", "stoverij", "eenpans", "hutspot", "stamppot",
+    "stoemp", "ratatouille", "shakshuka", "gratin", "tajine", "ovenschotels",
+}
+
+
+def is_flexible(title: str) -> bool:
+    return hit(tokens(title or ""), FLEX_TITLE)
 
 
 def build_data(conn) -> dict:
@@ -53,15 +68,21 @@ def build_data(conn) -> dict:
             "id": rid, "title": row["title"], "url": row["url"],
             "source": row["src"], "diet": row["diet"] or "uncertain",
             "servings": row["servings"], "base": base_by.get(rid),
-            "heroes": [], "ingredients": []})
+            "flexible": is_flexible(row["title"]),
+            "heroes": [], "produce": set(), "ingredients": []})
         text = row["itext"] or row["raw"] or ""
         r["ingredients"].append({
             "text": text, "qty": row["qty"], "unit": row["unit"],
             "unitDisplay": grocery.DISPLAY_UNIT.get(row["unit"], ""),
             "canonical": row["canon"],
             "aisle": grocery._aisle(text, row["canon"] is not None)})
+        if row["canon"] and row["canon"] not in AROMATICS:
+            r["produce"].add(row["canon"])       # for waste/overlap (not aromatics)
         if row["hero"] and row["canon"] and row["canon"] not in r["heroes"]:
             r["heroes"].append(row["canon"])
+
+    for r in recipes.values():
+        r["produce"] = sorted(r["produce"])       # set -> JSON-safe list
 
     return {
         "meta": {
@@ -142,6 +163,9 @@ HTML_TEMPLATE = r"""<!doctype html>
   .dish { background:var(--card); border:1px solid var(--line); border-radius:12px;
           padding:.7rem .8rem; margin:.55rem 0; }
   .dish.locked { border-color:var(--accent); box-shadow:inset 3px 0 0 var(--accent); }
+  .dish.scraps { border-color:var(--accent2); }
+  .chip.scraps { color:var(--accent2); font-weight:600; }
+  .scrapline { margin-top:.3rem; font-size:.8rem; color:var(--accent2); }
   .dish .top { display:flex; align-items:baseline; gap:.5rem; }
   .num { color:var(--muted); font-variant-numeric:tabular-nums; }
   .dish a { color:inherit; text-decoration:none; font-weight:600; }
@@ -186,6 +210,9 @@ HTML_TEMPLATE = r"""<!doctype html>
   </select></label>
   <label>Minder seizoensgebonden<select id="relax">
     <option value="0">nee</option><option value="1">ja, om aan te vullen</option>
+  </select></label>
+  <label>Restjesdag<select id="restjes">
+    <option value="0">nee</option><option value="1">ja, traybake met restjes</option>
   </select></label>
   <label>Volw.<input type="number" id="adults" min="0" step="1"></label>
   <label>Kind.<input type="number" id="kids" min="0" step="1"></label>
@@ -241,7 +268,8 @@ function season(r, month){
 // tier: 2 in-season > 1 neutral > 0 out-of-season(only when 'relax') ; -1 excluded
 function tierOf(s, relax){ return s.inSeason?2 : s.neutral?1 : (relax?0:-1); }
 const opts = () => ({ month:+$("month").value, diet:$("diet").value,
-  unc:$("uncertain").value==="1", relax:$("relax").value==="1" });
+  unc:$("uncertain").value==="1", relax:$("relax").value==="1",
+  restjes:$("restjes").value==="1" });
 
 function rankedPool(usedIds, o, rng){
   const pool=[];
@@ -254,32 +282,48 @@ function rankedPool(usedIds, o, rng){
   return pool;
 }
 // best candidate: prefer an under-used base, then higher season tier, then no
-// hero clash, then the seeded random.
-function pickNext(pool, usedIds, usedHeroes, baseCount){
+// repeated hero, then REUSE of produce already bought this week (less waste),
+// then the seeded random.
+function pickNext(pool, usedIds, usedHeroes, baseCount, usedProduce){
   let best=null;
   for(const c of pool){
     if(usedIds.has(c.r.id)) continue;
     const b=c.r.base||"_flex", clash=c.r.heroes.some(h=>usedHeroes.has(h))?1:0;
-    const score=[-(baseCount[b]||0), c.tier, -clash, c.rnd];
+    const overlap=c.r.produce.reduce((n,p)=> n+(usedProduce.has(p)?1:0), 0);
+    const score=[-(baseCount[b]||0), c.tier, -clash, overlap, c.rnd];
     if(!best || cmp(score,best.score)>0) best={c,score};
   }
   return best ? best.c : null;
 }
 
+function acct(s, usedIds, usedHeroes, usedProduce, baseCount){
+  usedIds.add(s.r.id); s.r.heroes.forEach(h=>usedHeroes.add(h));
+  s.r.produce.forEach(p=>usedProduce.add(p));
+  const b=s.r.base||"_flex"; baseCount[b]=(baseCount[b]||0)+1;
+}
 function refillOpen(){
   const o=opts();
   const slots=[]; for(let i=0;i<M.weekSize;i++) slots.push(WEEK[i] && WEEK[i].locked ? WEEK[i] : null);
-  const usedIds=new Set(), usedHeroes=new Set(), baseCount={};
-  slots.forEach(s=>{ if(s){ usedIds.add(s.r.id); s.r.heroes.forEach(h=>usedHeroes.add(h));
-    const b=s.r.base||"_flex"; baseCount[b]=(baseCount[b]||0)+1; } });
+  const usedIds=new Set(), usedHeroes=new Set(), usedProduce=new Set(), baseCount={};
+  slots.forEach(s=>{ if(s) acct(s, usedIds, usedHeroes, usedProduce, baseCount); });
   const pool=rankedPool(usedIds, o, mulberry32(SEED++));
+
+  // Restjesdag: reserve the last open slot for a flexible (traybake/one-pot)
+  // dish, unless we already have one.
+  if(o.restjes && !slots.some(s=>s && s.r.flexible)){
+    let idx=-1; for(let i=slots.length-1;i>=0;i--){ if(!slots[i]){ idx=i; break; } }
+    if(idx>=0){
+      const fp=pickNext(pool.filter(c=>c.r.flexible), usedIds, usedHeroes, baseCount, usedProduce);
+      if(fp){ slots[idx]={r:fp.r, inSeason:fp.inSeason, locked:false, scraps:true};
+        acct(slots[idx], usedIds, usedHeroes, usedProduce, baseCount); }
+    }
+  }
   for(let i=0;i<slots.length;i++){
     if(slots[i]) continue;
-    const p=pickNext(pool, usedIds, usedHeroes, baseCount);
+    const p=pickNext(pool, usedIds, usedHeroes, baseCount, usedProduce);
     if(!p) continue;
     slots[i]={r:p.r, inSeason:p.inSeason, locked:false};
-    usedIds.add(p.r.id); p.r.heroes.forEach(h=>usedHeroes.add(h));
-    const b=p.r.base||"_flex"; baseCount[b]=(baseCount[b]||0)+1;
+    acct(slots[i], usedIds, usedHeroes, usedProduce, baseCount);
   }
   WEEK=slots.filter(Boolean);
   draw();
@@ -287,11 +331,10 @@ function refillOpen(){
 function newWeek(){ WEEK=[]; refillOpen(); }
 function toggleLock(i){ WEEK[i].locked=!WEEK[i].locked; draw(); }
 function replaceOne(i){                                        // swap a single open dish
-  const o=opts(), others=new Set(), usedHeroes=new Set(), baseCount={};
-  WEEK.forEach((s,j)=>{ if(j===i) return; others.add(s.r.id); s.r.heroes.forEach(h=>usedHeroes.add(h));
-    const b=s.r.base||"_flex"; baseCount[b]=(baseCount[b]||0)+1; });
+  const o=opts(), others=new Set(), usedHeroes=new Set(), usedProduce=new Set(), baseCount={};
+  WEEK.forEach((s,j)=>{ if(j!==i) acct(s, others, usedHeroes, usedProduce, baseCount); });
   const pool=rankedPool(others, o, mulberry32(SEED++));
-  const p=pickNext(pool, others, usedHeroes, baseCount);
+  const p=pickNext(pool, others, usedHeroes, baseCount, usedProduce);
   if(p){ WEEK[i]={r:p.r, inSeason:p.inSeason, locked:false}; draw(); }
 }
 
@@ -330,21 +373,34 @@ function draw(){
     h.textContent = `${open} plek(ken) niet ingevuld voor deze maand — zet "minder seizoensgebonden" op "ja" om aan te vullen.`;
     w.appendChild(h);
   }
+  // produce that appears in only ONE dish this week -> the fractions most likely
+  // to go to waste (aromatics excluded from r.produce already).
+  const pc={}; WEEK.forEach(s=> s.r.produce.forEach(p=> pc[p]=(pc[p]||0)+1));
+  const singles = Object.keys(pc).filter(p=>pc[p]===1).sort();
+  const hasScraps = WEEK.some(s=>s.scraps);
+  if(!hasScraps && singles.length>=4){
+    const h=document.createElement("div"); h.className="hint";
+    h.textContent = `${singles.length} groenten komen in maar één gerecht voor (kans op restjes) — zet Restjesdag aan.`;
+    w.appendChild(h);
+  }
   WEEK.forEach((p,i)=>{
-    const d=document.createElement("div"); d.className="dish"+(p.locked?" locked":"");
+    const d=document.createElement("div"); d.className="dish"+(p.locked?" locked":"")+(p.scraps?" scraps":"");
     const scale = p.r.servings ? adultEquiv()/p.r.servings : 1;
     const heroes = p.r.heroes.length ? p.r.heroes.join(", ") : "geen seizoensgroente";
     const tag = p.inSeason ? '<span class="chip">in seizoen</span>'
                            : '<span class="chip neutral">seizoensneutraal</span>';
+    const scrapsChip = p.scraps ? '<span class="chip scraps">♻ restjesdag</span>' : "";
     const lockBtn = `<button class="slotbtn lock ${p.locked?'on':''}" title="${p.locked?'ontgrendel':'behoud'}">${p.locked?'🔒':'🔓'}</button>`;
     const repl = p.locked ? "" : `<button class="slotbtn replace" title="vervang">↻</button>`;
+    const scrapsLine = p.scraps && singles.length ?
+      `<div class="scrapline">restjes hier: ${esc(singles.join(", "))}</div>` : "";
     d.innerHTML =
       `<div class="top"><span class="num">${i+1}.</span>`+
       `<a href="${esc(p.r.url)}" target="_blank" rel="noopener">${esc(p.r.title||"")}</a>`+
       `<span style="margin-left:auto">${lockBtn}${repl}</span></div>`+
-      `<div class="meta"><span class="chip base">${esc(p.r.base||"vrij")}</span>${tag}`+
+      `<div class="meta"><span class="chip base">${esc(p.r.base||"vrij")}</span>${scrapsChip}${tag}`+
       `<span>hero: ${esc(heroes)}</span><span>${dietNL(p.r.diet)}</span>`+
-      `<span>×${fmtQ(scale)} (${p.r.servings}p)</span></div>`;
+      `<span>×${fmtQ(scale)} (${p.r.servings}p)</span></div>`+ scrapsLine;
     d.querySelector(".lock").onclick=()=>toggleLock(i);
     const rb=d.querySelector(".replace"); if(rb) rb.onclick=()=>replaceOne(i);
     w.appendChild(d);
@@ -380,7 +436,7 @@ function drawGrocery(){
   // relax refills only the OPEN slots (keeps your locked picks);
   // household size only rescales.
   ["month","diet","uncertain"].forEach(id=>$(id).addEventListener("change",newWeek));
-  $("relax").addEventListener("change",refillOpen);
+  ["relax","restjes"].forEach(id=>$(id).addEventListener("change",refillOpen));
   ["adults","kids"].forEach(id=>$(id).addEventListener("change",()=>{ if(WEEK.length) draw(); }));
   newWeek();
 })();

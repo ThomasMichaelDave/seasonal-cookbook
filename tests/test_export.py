@@ -26,10 +26,21 @@ def test_recipe_shape_is_facts_only():
     r = next(r for r in data["recipes"] if r["title"].startswith("Pompoen"))
     assert r["base"] == "rice" and "pompoen" in r["heroes"]
     assert r["url"] and r["diet"] and r["servings"]
+    assert "pompoen" in r["produce"] and r["flexible"] is False   # waste/scraps fields
     ing = r["ingredients"][0]
     assert set(ing) == {"text", "qty", "unit", "unitDisplay", "canonical", "aisle"}
     # no instruction/prose field anywhere
     assert "instructions" not in r and "instruction" not in json.dumps(r).lower()
+
+
+def test_produce_excludes_aromatics_and_flexible_flag():
+    import export
+    assert export.is_flexible("Traybake met kip en groenten") is True
+    assert export.is_flexible("Ovenschotel met prei") is True
+    assert export.is_flexible("Pasta arrabiata") is False
+    data = _data()
+    # 'ui' is an aromatic -> must not appear in any recipe's produce list
+    assert all("ui" not in r["produce"] for r in data["recipes"])
 
 
 def test_seasonality_map_present():
