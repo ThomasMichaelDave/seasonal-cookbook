@@ -14,6 +14,7 @@ seasonal produce item to score against". Recipes with none are SEASON-NEUTRAL
 """
 import config
 import db
+import staples
 from classify import AROMATICS
 
 _ARO = tuple(AROMATICS)
@@ -70,6 +71,8 @@ def compute(conn):
         "FROM recipes r JOIN sources s ON r.source_id=s.id "
         "LEFT JOIN recipe_ingredients ri ON ri.recipe_id=r.id "
         "GROUP BY s.name ORDER BY tot DESC").fetchall()
+
+    s["staples"] = staples.distribution(conn)   # the planner's second axis
     return s
 
 
@@ -114,6 +117,12 @@ def render(s):
     line("\n  top heroes:")
     for r in s["top_heroes"]:
         line(f"     {r['name_nl']:<18} {r['c']:,}")
+
+    line("\nSTAPLE BASE  (the planner's second axis -- one main-ingredient/day)")
+    for base in staples.BASE_ORDER + ["none"]:
+        c = s["staples"].get(base, 0)
+        note = "   (no staple: salad/soup, handled separately)" if base == "none" else ""
+        line(f"     {base:<8} {c:>5,}  {_pct(c, n)}{note}")
 
     line("\nPLANNER READINESS")
     line(f"     recipes with servings: {s['servings_known']:>5,}  {_pct(s['servings_known'], n)}"
