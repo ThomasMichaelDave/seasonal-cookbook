@@ -26,10 +26,12 @@ three sources; wider crawler now exists.
 | **Velt calendar** | **loaded — 421 rows, 70 crops, all 12 months** |
 | Recipe persistence (`persist.py`) | done — idempotent upsert, shared by spike + crawl |
 | Wider crawl (`crawl.py`) | done — polite, resumable, `--list-only`/`--limit`/`--all` |
-| Menu planner / grocery list | not started |
+| Staple-base + course classifiers (`staples.py`, `courses.py`) | done — dump-reviewed |
+| Season filter + menu planner (`season.py`, `planner.py`) | done — `plan_week(month, diet, strictness)`, 7 mains, base variety, hero-in-season, household scaling |
+| Grocery list | not started |
 | UI | not started — decided: single-file browser app |
 
-Nothing is blocked. Current step: run `crawl.py` wider, then build the planner.
+Nothing is blocked. Current step: grocery list, then the single-file browser app.
 
 ## The Velt data — read `docs/velt.md` before touching seasonality
 
@@ -65,6 +67,12 @@ python crawl.py --list-only               # discover, report sizes + ETA, no fet
 python crawl.py --source 15gram --limit 500
 python crawl.py --all --limit 300         # 300 per source
 python crawl.py --source delhaize --yes   # whole source (--yes clears the size gate)
+
+# Analysis + planning (offline; read cookbook.db, no network)
+python report.py                          # corpus coverage: hero, staple, course, pool
+python staples.py                         # staple-base dump -> dumps/staples.txt
+python courses.py                         # course dump -> dumps/courses.txt
+python planner.py --month 9 --diet vegetarian   # a seasonal week of 7 mains
 ```
 
 `spike.py` (without `--offline`) and `crawl.py` are THE ONLY commands that touch
@@ -184,17 +192,21 @@ the diet misses (steak/entrecote/sardienen/halloumi, `gehakte`), the `kl`/
 deciliter units, Delhaize trailing quantities, and the spike re-run FK crash.
 `url_patterns` verified against live sitemaps (no tightening needed yet).
 
-1. **Crawl wider** with `crawl.py` (start `--list-only` to see sizes + ETA,
-   then `--source 15gram --limit …`, working up). Watch the diet breakdown.
-2. **Answer the first real question:** how many scraped recipes have a
-   seasonal hero at all? That number decides whether the lexicon needs to grow.
-3. **Menu planner** — decided shape: a **single-file browser app**; **main
-   dishes only**, each centred on a *staple base* (potato / rice+grain / pasta
-   / bread family); servings **scale to a household of 2 adults + 2 kids**.
-   Needs a small **staple-base classifier** (potato/rice/pasta/bread) — a new
-   axis alongside the seasonal hero — which does not exist yet.
-4. **Grocery list:** aggregate ingredients across the week, group by aisle,
-   scaled to household size.
+Done: ✅ crawled wider (604 recipes); ✅ hero coverage measured (92%, lexicon is
+rich enough); ✅ staple-base + course classifiers (`staples.py`, `courses.py`),
+both dump-reviewed against the real corpus; ✅ **season filter + planner**
+(`season.py`, `planner.py`) — `plan_week(month, diet, strictness)` picks 7 mains,
+varied by staple base, hero in season, scaled to the household (`config.KID_PORTION`).
+
+1. **Grocery list:** aggregate the planned week's ingredients, scale each to the
+   household, fuzzy-merge duplicates (3× "1 ui" → "3 uien"), group by aisle.
+   Quantity coverage is 73%; unquantified seasonings list as "to taste".
+2. **Single-file browser app** (decided UI): export a facts-only JSON of recipes
+   (no instructions — copyright), run the planner + grocery list client-side.
+   Month picker, diet/strictness toggles, per-recipe reroll (change the seed),
+   source links.
+3. **Then v2** — the incidentally-vegan winter crawl (`docs/vegan_sources.md`),
+   after its prerequisites (cuisine column, alias pass).
 
 Optional, once there's real recipe data: layer VLAM's low/normal/high gradient
 in as `field`/`greenhouse`/`storage` rows to make the strictness dial live.

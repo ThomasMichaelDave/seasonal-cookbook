@@ -60,3 +60,17 @@ SOURCES = {
 
 # Spike sample sizes: small on purpose. The point is to learn, not to harvest.
 SPIKE_SAMPLE = {"15gram": 20, "dagelijksekost": 5, "delhaize": 5}
+
+# --- Planner / household ----------------------------------------------------
+WEEK_SIZE = 7                # dinners per planned week
+
+# Household to scale recipe servings to: 2 adults + 2 kids, a kid counting as
+# KID_PORTION of an adult serving. Configurable -- the UI will expose it.
+HOUSEHOLD_ADULTS = 2
+HOUSEHOLD_KIDS = 2
+KID_PORTION = 0.5           # kid = half an adult serving -> 3.0 adult-equivalents
+
+
+def household_servings() -> float:
+    """Adult-equivalent servings a recipe should scale to."""
+    return HOUSEHOLD_ADULTS + HOUSEHOLD_KIDS * KID_PORTION
