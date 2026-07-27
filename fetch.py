@@ -6,7 +6,14 @@ Rules this module enforces so you don't have to remember them:
   * exponential backoff on 429/5xx, capped by MAX_RETRIES
   * every response is cached; nothing is ever fetched twice
   * UTF-8 is forced on decode (Windows will otherwise mangle 'crème fraîche')
+  * gzipped bodies (.xml.gz sitemaps) are transparently decompressed
+  * TLS is verified against the OS trust store, not just certifi's bundle,
+    so networks that do TLS interception (corporate proxies re-signing HTTPS
+    with a private root CA) don't fail every request with
+    CERTIFICATE_VERIFY_FAILED. urllib already uses the OS store; this brings
+    requests to parity. See the truststore block below.
 """
+import gzip
 import hashlib
 import random
 import time
@@ -15,6 +22,19 @@ from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
 import requests
+
+# Use the operating system's trust store (which includes corporate/internal
+# root CAs pushed by IT) instead of only certifi's Mozilla bundle. On a network
+# that intercepts TLS, certifi rejects the re-signed certificate while the OS
+# store trusts it -- that mismatch is why `requests` failed with
+# CERTIFICATE_VERIFY_FAILED while `urllib` (which uses the OS store) succeeded.
+# Guarded so a machine without truststore, or a non-Windows/limited install,
+# simply falls back to certifi and keeps working on a normal network.
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:  # pragma: no cover - environment-dependent
+    pass
 
 from config import USER_AGENT, REQUEST_DELAY, JITTER, TIMEOUT, MAX_RETRIES, BACKOFF_BASE
 
@@ -85,8 +105,12 @@ def get(url: str) -> tuple[int | None, str | None]:
         _throttle(dom)
         try:
             r = _session.get(url, timeout=TIMEOUT)
-        except requests.RequestException:
+        except requests.RequestException as e:
             if attempt == MAX_RETRIES:
+                # Surface the reason instead of collapsing to a bare None. A
+                # swallowed SSLError here is exactly what made discovery return
+                # '0 urls' with no explanation.
+                print(f"  fetch error: {url} -> {type(e).__name__}: {e}", flush=True)
                 return None, None
             time.sleep(BACKOFF_BASE * (2 ** (attempt - 1)))
             continue
@@ -98,8 +122,18 @@ def get(url: str) -> tuple[int | None, str | None]:
             time.sleep(delay)
             continue
 
+        # Decompress gzipped bodies. requests handles Content-Encoding: gzip
+        # automatically, but a '.xml.gz' sitemap is served as gzip *content*
+        # (not transfer encoding), so we detect the gzip magic bytes ourselves.
+        content = r.content
+        if content[:2] == b"\x1f\x8b":
+            try:
+                content = gzip.decompress(content)
+            except OSError:
+                pass  # not actually gzip; fall through and decode as-is
+
         # Force UTF-8 rather than trusting requests' charset guess.
-        text = r.content.decode("utf-8", errors="replace")
+        text = content.decode("utf-8", errors="replace")
         return r.status_code, text
     return None, None
 

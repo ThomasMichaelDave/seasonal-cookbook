@@ -72,10 +72,12 @@ def read_sitemap(url, depth=0, budget=None):
         return []
     status, xml = fetch.get(url)
     if status != 200 or not xml:
+        log(f"     sitemap fetch failed: {url} -> status={status}")
         return []
     try:
         root = ElementTree.fromstring(xml.encode("utf-8"))
-    except ElementTree.ParseError:
+    except ElementTree.ParseError as e:
+        log(f"     sitemap parse failed: {url} -> {e}")
         return []
 
     if root.tag.endswith("sitemapindex"):
