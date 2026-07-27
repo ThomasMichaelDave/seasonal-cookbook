@@ -153,6 +153,29 @@ Deferred to v2: Marmiton (FR, native scraper exists), BBC Good Food (EN,
 native scraper exists). Adding them means a second-language lexicon, which is
 why they're deferred.
 
+**v2 — incidentally-vegan, winter-coverage crawl (survey: `docs/vegan_sources.md`).**
+The point is NOT more vegan volume — it's traditions that cook Belgian *winter*
+crops (witloof, spruiten, boerenkool, pastinaak, knolselderij, koolraap,
+rammenas): Punjabi/North Indian, Korean temple/home, Northern Chinese, Japanese
+nimono, Turkish/Balkan. Mediterranean/Levantine material peaks Jun–Oct and is
+already covered by the Belgian sources. Prerequisites, in order (from the
+survey — do NOT crawl before these):
+1. Add a `cuisine` column to `recipes` (a Belgian stoofpotje and a Sichuan
+   stir-fry must be distinguishable at plan time).
+2. A transliterated-Hindi / romanised-Korean+Japanese produce **alias pass**
+   (mooli, gobi, baingan, bhindi, karela, daikon…) — else match rates are poor.
+3. Start with THREE, chosen for winter coverage: `vegrecipesofindia.com`
+   (native scraper), `redhousespice.com` (native, Northern Chinese),
+   `miakouppa.com` (wild_mode, Greek nistisima). English-language, so no new
+   language layer — but see the alias pass above.
+4. Re-measure the per-month in-season-hero count; if February is still thin,
+   the answer is more Punjabi/Korean/N-Chinese, not more Mediterranean.
+
+Traps (all already handled by the classifier, per the survey): Indian
+"vegetarian" ≠ vegan (ghee/paneer/dahi → `vegetarian`); nistisima/Lenten tags
+permit shellfish and are NOT a vegan filter — run the classifier; kimchi &
+curry paste stay `uncertain` (maker-dependent fish sauce/shrimp paste).
+
 ## Next tasks, in order
 
 Done in the first crawl round: ✅ ran the probe and tuned `parse_ingredient()`
@@ -179,6 +202,22 @@ in as `field`/`greenhouse`/`storage` rows to make the strictness dial live.
 Deferred lexicon polish (Tier 3, low priority): `champignonmix` and
 `stoofselder` don't match a seasonal canonical; `edamame` wrongly matches
 `prinsessenboon`. Seasonal-signal only, not diet.
+
+Open lexicon decisions raised by `docs/vegan_sources.md` (judgment calls, left
+for the owner):
+- **`kool` on its own** — common ("500 g kool") but ambiguous (white / savoy /
+  pointed / red). A low-confidence default to `wittekool` would be wrong ~⅓ of
+  the time. Not mapped.
+- **`daikon` / `rettich`** — closest Velt crop is `rammenas` (same season, same
+  role, different vegetable). Mapping daikon→rammenas is an approximation, not a
+  fact, so not done silently. Needed for Japanese/Korean/N-Chinese.
+- **No Velt equivalent:** gobo, taro, lotus root, mustard greens, bitter gourd,
+  drumstick — will always score `unknown` (skipped), which is correct.
+
+Fixed from that survey: Dutch vowel-shortening plurals (`raap`→`rapen`, not
+`raapen`; `bloemkool`→`bloemkolen`; `pastinaak`→`pastinaken`; +7 more). Eight
+are Velt crops, so this was silently costing matches on the *Belgian* corpus.
+See `tests/test_plurals.py`.
 
 ## Open questions for the owner
 

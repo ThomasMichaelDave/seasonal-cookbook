@@ -245,6 +245,12 @@ def build_alias_index() -> dict:
     by hand in the lexicon, generate the forms forwards from each alias --
     forward generation can't invent a false match the base alias didn't
     already imply.
+
+    Plurals also SHORTEN a doubled vowel that closes the stem: 'raap' -> 'rapen'
+    (not 'raapen'), 'bloemkool' -> 'bloemkolen', 'pastinaak' -> 'pastinaken',
+    'koolraap' -> 'koolrapen', 'aardpeer' -> 'aardperen'. Eight of the ten
+    affected words are Velt crops, so plain suffix-appending was silently
+    missing these on the Belgian corpus, not just prospective ones.
     """
     idx = {}
 
@@ -264,7 +270,23 @@ def build_alias_index() -> dict:
                 continue
             for suffix in ("s", "en", "je", "jes", "tje", "tjes", "ke", "kes"):
                 add(base + suffix, nl)
+            shortened = _shorten_plural(base)
+            if shortened:
+                add(shortened, nl)
     return idx
+
+
+# aa/ee/oo/uu closing a stem shorten to a single vowel before the plural -en:
+# raap -> rapen, kool -> kolen, peer -> peren, pastinaak -> pastinaken.
+_VOWEL_SHORTEN = re.compile(r"^(.*)(aa|ee|oo|uu)([bcdfghjklmnpqrstvwxz])$")
+
+
+def _shorten_plural(word: str) -> str | None:
+    m = _VOWEL_SHORTEN.match(word)
+    if not m:
+        return None
+    stem, vowels, cons = m.groups()
+    return f"{stem}{vowels[0]}{cons}en"
 
 
 ALIAS_INDEX = build_alias_index()
