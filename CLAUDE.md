@@ -28,10 +28,10 @@ three sources; wider crawler now exists.
 | Wider crawl (`crawl.py`) | done — polite, resumable, `--list-only`/`--limit`/`--all` |
 | Staple-base + course classifiers (`staples.py`, `courses.py`) | done — dump-reviewed |
 | Season filter + menu planner (`season.py`, `planner.py`) | done — `plan_week(month, diet, strictness)`, 7 mains, base variety, hero-in-season, household scaling |
-| Grocery list | not started |
+| Grocery list (`grocery.py`) | done — aggregate week, scale, merge duplicates, group by aisle, "naar smaak" for unquantified |
 | UI | not started — decided: single-file browser app |
 
-Nothing is blocked. Current step: grocery list, then the single-file browser app.
+Nothing is blocked. Current step: the single-file browser app.
 
 ## The Velt data — read `docs/velt.md` before touching seasonality
 
@@ -73,6 +73,7 @@ python report.py                          # corpus coverage: hero, staple, cours
 python staples.py                         # staple-base dump -> dumps/staples.txt
 python courses.py                         # course dump -> dumps/courses.txt
 python planner.py --month 9 --diet vegetarian   # a seasonal week of 7 mains
+python grocery.py --month 9 --diet vegetarian   # that week's grocery list, by aisle
 ```
 
 `spike.py` (without `--offline`) and `crawl.py` are THE ONLY commands that touch
@@ -198,14 +199,15 @@ both dump-reviewed against the real corpus; ✅ **season filter + planner**
 (`season.py`, `planner.py`) — `plan_week(month, diet, strictness)` picks 7 mains,
 varied by staple base, hero in season, scaled to the household (`config.KID_PORTION`).
 
-1. **Grocery list:** aggregate the planned week's ingredients, scale each to the
-   household, fuzzy-merge duplicates (3× "1 ui" → "3 uien"), group by aisle.
-   Quantity coverage is 73%; unquantified seasonings list as "to taste".
-2. **Single-file browser app** (decided UI): export a facts-only JSON of recipes
+Done: ✅ **grocery list** (`grocery.py`) — aggregates the planned week, scales to
+the household, merges duplicates by canonical (gele/rode ui → ui), groups by
+aisle, lists unquantified seasonings as "naar smaak".
+
+1. **Single-file browser app** (decided UI): export a facts-only JSON of recipes
    (no instructions — copyright), run the planner + grocery list client-side.
    Month picker, diet/strictness toggles, per-recipe reroll (change the seed),
    source links.
-3. **Then v2** — the incidentally-vegan winter crawl (`docs/vegan_sources.md`),
+2. **Then v2** — the incidentally-vegan winter crawl (`docs/vegan_sources.md`),
    after its prerequisites (cuisine column, alias pass).
 
 Optional, once there's real recipe data: layer VLAM's low/normal/high gradient

@@ -64,8 +64,8 @@ The per-recipe axes the planner needs now all exist:
 | Tee logging | `runlog.py` | done — timestamped `logs/` | `test_runlog` |
 | Season filter by month | `season.py` | **done** — DB-backed `season_score`, per-month | `test_season` |
 | Menu planner | `planner.py` | **done** — `plan_week(month, diet, strictness, seed)`, 7 mains, base variety, kid-scaling | `test_planner` |
-| **Grocery list** | — | **not started** — next |  |
-| **UI (single-file browser app)** | — | **not started** (form decided) |  |
+| Grocery list | `grocery.py` | **done** — aggregate + scale + merge by canonical + aisle grouping | `test_grocery` |
+| **UI (single-file browser app)** | — | **not started** (form decided) — next |  |
 
 ## 4. Corpus snapshot
 
