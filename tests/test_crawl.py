@@ -52,3 +52,15 @@ def test_fmt_eta_scales():
     assert crawl.fmt_eta(1).endswith("s")
     assert "min" in crawl.fmt_eta(200)
     assert crawl.fmt_eta(20000).endswith("h")
+
+
+def test_explicit_limit_never_needs_yes():
+    big = crawl.BIG_RUN + 100
+    # explicit --limit is consent: no --yes required, however big
+    assert crawl._needs_confirmation(limit=500, n_new=big, assume_yes=False) is False
+    # unbounded (no --limit) large run still asks for --yes
+    assert crawl._needs_confirmation(limit=None, n_new=big, assume_yes=False) is True
+    # ...unless --yes is given
+    assert crawl._needs_confirmation(limit=None, n_new=big, assume_yes=True) is False
+    # small unbounded run runs freely
+    assert crawl._needs_confirmation(limit=None, n_new=10, assume_yes=False) is False

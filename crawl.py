@@ -18,9 +18,12 @@ Stores FACTS ONLY (see persist.py / docs/research.md): never instruction text.
 
 Usage:
     py crawl.py --list-only                 # discover + report sizes + ETA, no fetch
-    py crawl.py --source 15gram --limit 500
+    py crawl.py --source 15gram --limit 500 # an explicit --limit needs no --yes
     py crawl.py --all --limit 300           # 300 from each source
-    py crawl.py --source delhaize           # whole source (prompts if large)
+    py crawl.py --source delhaize --yes     # whole (unbounded) source
+
+An explicit --limit is your conscious choice about scale, so it runs without
+--yes. Only an unbounded run (no --limit) over BIG_RUN new fetches asks for it.
 """
 import argparse
 import re
@@ -38,6 +41,12 @@ from spike import read_sitemap, now, log
 # print an ETA so a multi-hour crawl is a conscious choice, never a surprise.
 SECS_PER_FETCH = config.REQUEST_DELAY + config.JITTER / 2
 BIG_RUN = 400                    # above this many *new* fetches, confirm first
+
+
+def _needs_confirmation(limit, n_new, assume_yes):
+    """The size gate guards UNBOUNDED runs only. An explicit --limit is itself
+    the conscious choice about scale, so it never also requires --yes."""
+    return limit is None and n_new > BIG_RUN and not assume_yes
 
 
 def discover(name, cfg):
@@ -110,9 +119,9 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
 
     if list_only:
         return Counter()
-    if n_new > BIG_RUN and not assume_yes:
-        log(f"  this will make {n_new:,} live requests ({fmt_eta(n_new)}). "
-            f"Re-run with --yes to proceed, or use --limit N.")
+    if _needs_confirmation(limit, n_new, assume_yes):
+        log(f"  this whole-source run is {n_new:,} live requests ({fmt_eta(n_new)}). "
+            f"Add --limit N to bound it, or --yes to crawl the whole source.")
         return Counter()
 
     # enqueue into the frontier so status is tracked
@@ -159,7 +168,8 @@ def main():
     ap.add_argument("--list-only", action="store_true",
                     help="discover + report sizes and ETA, fetch nothing.")
     ap.add_argument("--yes", action="store_true",
-                    help="proceed even on a large (>%d new fetch) run." % BIG_RUN)
+                    help="crawl a whole (unbounded) source even if it is a large "
+                         "run. Not needed when --limit is given.")
     args = ap.parse_args()
 
     names = args.source or (list(config.SOURCES) if (args.all or args.list_only) else None)
