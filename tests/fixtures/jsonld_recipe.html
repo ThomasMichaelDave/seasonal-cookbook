@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture. Hand-written, not copied from any live site, so nothing
+  third-party is committed to this repo. It mimics the shape a schema.org
+  Recipe page takes: a @graph wrapper with the Recipe nested inside, which is
+  the case that naive "content[0]" parsers get wrong.
+-->
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <title>Stoofpotje van witloof en prei</title>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "Organization", "name": "Voorbeeldsite" },
+      { "@type": "BreadcrumbList", "itemListElement": [] },
+      {
+        "@type": "Recipe",
+        "name": "Stoofpotje van witloof en prei",
+        "recipeYield": "4 personen",
+        "totalTime": "PT1H15M",
+        "recipeIngredient": [
+          "500 g prei, in ringen gesneden",
+          "1 kg witloof",
+          "1,5 kg aardappelen",
+          "2 uien, gesnipperd",
+          "3 teentjes knoflook",
+          "100 g boter",
+          "snuf zout"
+        ],
+        "recipeInstructions": [
+          { "@type": "HowToStep", "text": "Placeholder step one." },
+          { "@type": "HowToStep", "text": "Placeholder step two." }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <h1>Stoofpotje van witloof en prei</h1>
+</body>
+</html>

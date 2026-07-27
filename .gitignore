@@ -1,0 +1,32 @@
+# local database + cached third-party HTML — regenerable, never commit
+cookbook.db
+cookbook.db-wal
+cookbook.db-shm
+*.sqlite
+*.sqlite3
+
+# spike output
+dumps/
+
+# source data dropped in by hand
+data/velt/*.xlsx
+data/velt/*.xls
+data/velt/*.pdf
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
