@@ -5,15 +5,25 @@ week on a staple base ("every day has a main ingredient it is built around"),
 so each main dish is tagged with the one staple it rests on. Like the hero and
 the season score, this is DERIVED -- recompute freely, never treat as input.
 
-The base is chosen like the seasonal hero:
-  1. if the TITLE names a staple, that's the base (strongest statement);
-  2. otherwise the bulkiest staple ingredient by mass;
-  3. None if the recipe has no staple at all -- a pure salad or soup is a valid
-     dish but not a staple-centred main, and the planner treats it separately.
+How the base is chosen (learned from dumps/staples.txt on the real crawl):
+
+  1. The TITLE decides first. A non-bread staple named in the title (pasta,
+     rijst, risotto, couscous, quinoa, aardappel, krieltjes...) is the base. So
+     is a bread FORM in the title -- burger, pizza, broodje, pita, naan, wrap,
+     taco, panini... -- because those dishes ARE bread even when the bun/dough
+     is only implied and never listed as an ingredient.
+  2. Otherwise the bulkiest NON-BREAD staple ingredient (pasta/rice/potato/
+     grain). Bread ingredients are deliberately excluded here: a bread roll
+     served alongside a waterzooi or a salad is a SIDE, not the base.
+  3. Otherwise bread, but only if a HANDHELD bread form is an ingredient
+     (pita/naan/wrap/tortilla/taco/quesadilla/bun/flatbread) -- not a loose
+     'stokbrood'/'lookbrood' accompaniment.
+  4. Otherwise None -- a salad, soup or dessert is a valid dish but not a
+     staple-centred main, and the planner treats it separately.
 
 Run `py staples.py` to see the distribution over cookbook.db and write
 dumps/staples.txt (every recipe -> detected base + the staple ingredients) so
-the classification can be eyeballed the way ingredients.txt was for diet.
+the classification can be eyeballed, the way ingredients.txt was for diet.
 """
 from collections import Counter
 
@@ -21,9 +31,9 @@ import config
 import db
 from classify import norm, deaccent, tokens
 
-# Order matters: the first family that matches a token wins, so the more
-# specific compounds (rice noodles are pasta, not rice) are placed to win.
 BASE_ORDER = ["pasta", "potato", "rice", "grain", "bread"]
+NONBREAD = ("pasta", "potato", "rice", "grain")
+MIN_PREFIX = 4
 
 STAPLE_TERMS = {
     "pasta": {
@@ -32,6 +42,7 @@ STAPLE_TERMS = {
         "orzo", "vermicelli", "gnocchi", "spatzle", "noedel", "noodle", "mie",
         "udon", "soba", "bami", "mihoen", "rijstnoedel", "eiernoedel",
         "cappellini", "linguine", "rigatoni", "conchiglie", "fettuccine",
+        "orecchiette", "casarecce", "spirelli", "fregola",
     },
     "potato": {
         "aardappel", "krielaardappel", "kriel", "krieltje", "patat", "friet",
@@ -42,44 +53,96 @@ STAPLE_TERMS = {
         "zilvervliesrijst", "sushirijst", "pandanrijst", "arborio",
     },
     "grain": {
-        "couscous", "bulgur", "quinoa", "boekweit", "gierst", "spelt",
-        "parelgort", "polenta", "gort", "farro", "freekeh", "griesmeel",
+        "couscous", "parelcouscous", "bulgur", "quinoa", "boekweit", "gierst",
+        "spelt", "parelgort", "polenta", "gort", "farro", "freekeh", "griesmeel",
     },
     "bread": {
         "brood", "broodje", "stokbrood", "baguette", "ciabatta", "focaccia",
         "pita", "naan", "naanbrood", "wrap", "miniwrap", "tortilla", "taco",
         "quesadilla", "burgerbroodje", "hamburgerbroodje", "pistolet", "toast",
-        "bagel", "roti", "flatbread", "boterham", "pannenkoek", "tortiwrap",
+        "roti", "flatbread", "boterham", "pannenkoek", "tortiwrap", "durum",
     },
 }
 
-# Compounds that CONTAIN a staple stem but are not that staple. Stripped before
-# matching, exactly like SAFE_COMPOUNDS in the diet lexicon.
+# Compounds that CONTAIN a staple stem but are not that staple -- stripped
+# before matching, like SAFE_COMPOUNDS in the diet lexicon. The pastes matter:
+# 'harissa/gochujang/miso pasta' are CONDIMENTS, and 'spaghettikruiden' is a
+# spice mix -- none of them is a noodle.
 NOT_A_STAPLE = {
     "rijstmelk", "rijstazijn", "rijstwijn", "rijstpapier",       # not rice base
     "aardappelzetmeel", "aardappelmeel",                         # potato starch
-    "paneermeel", "panko", "broodkruimels", "broodkruim",        # breadcrumbs
-    "broodbeleg",
+    "paneermeel", "panko", "broodkruimels", "broodkruim", "broodbeleg",
+    "harissa pasta", "gochujang pasta", "miso pasta", "spaghettikruiden",
 }
 
-MIN_PREFIX = 4
+# Bread FORMS that, as an INGREDIENT, make a dish bread-based. A loose
+# 'stokbrood'/'lookbrood'/'broodje' served on the side does NOT -- it is an
+# accompaniment, so those are excluded here (the title still catches a real
+# 'Broodje ...' sandwich via TITLE_BREAD).
+BREAD_STRONG = {
+    "pita", "pitabroodje", "naan", "naanbrood", "wrap", "miniwrap", "tortilla",
+    "tortiwrap", "taco", "quesadilla", "burgerbroodje", "hamburgerbroodje",
+    "flatbread", "durum",
+}
+
+# A bread FORM in the title makes the dish bread-based even with no bread
+# ingredient. Distinctive forms count ANYWHERE in the title; 'burger'/'pizza'
+# are matched as a substring to catch Dutch compounds (rundsburger, pompoenpizza).
+TITLE_BREAD_STRONG = {
+    "pita", "naan", "wrap", "taco", "quesadilla", "panini", "bruschetta",
+    "panzanella", "flatbread", "focaccia", "pistolet", "durum", "enchilada",
+    "enchillada", "fajita", "tortilla", "banh", "hotdog",
+}
+# Generic bread words only count in the title CORE (before ' met '): 'Broodje
+# kip' is a sandwich, but 'waterzooi met knapperig brood' has bread as a SIDE.
+TITLE_BREAD_WEAK = {"brood", "broodje", "toast"}
 
 
-def staple_of_text(text: str):
-    """Return the staple base a single ingredient/title string names, or None."""
+def _matches(tok: str, term: str) -> bool:
+    d = deaccent(term)
+    return tok == d or (len(d) >= MIN_PREFIX and tok.startswith(d))
+
+
+def _family_of(text: str, families) -> str | None:
+    """First family (in `families` order) whose term matches a token, else None."""
     flat = deaccent(norm(text))
     for bad in NOT_A_STAPLE:
         if bad in flat:
             flat = flat.replace(bad, " ")
-    # tokens() splits on alpha-runs, so "torti'wraps" -> ["torti","wraps"] and
-    # digits/punctuation drop out (same tokeniser the diet lexicon uses).
     toks = tokens(flat)
-    for base in BASE_ORDER:
+    for base in families:
         for tok in toks:
-            for term in STAPLE_TERMS[base]:
-                dterm = deaccent(term)
-                if tok == dterm or (len(dterm) >= MIN_PREFIX and tok.startswith(dterm)):
-                    return base
+            if any(_matches(tok, term) for term in STAPLE_TERMS[base]):
+                return base
+    return None
+
+
+def staple_of_text(text: str) -> str | None:
+    """The staple family a single ingredient/string names, any base. For the dump."""
+    return _family_of(text, BASE_ORDER)
+
+
+def _has_strong_bread(text: str) -> bool:
+    toks = tokens(deaccent(norm(text)))
+    return any(_matches(tok, t) for tok in toks for t in BREAD_STRONG)
+
+
+def _title_base(title: str) -> str | None:
+    # non-bread staple in the title wins first, so a veg/grain burger keeps its
+    # grain ('quinoaburger' -> grain) and 'steak met pasta' -> pasta.
+    nb = _family_of(title or "", NONBREAD)
+    if nb:
+        return nb
+    flat = deaccent(norm(title or ""))
+    for tok in tokens(flat):                       # distinctive forms, anywhere
+        if "pizza" in tok or "burger" in tok:
+            return "bread"
+        if any(tok.startswith(p) for p in TITLE_BREAD_STRONG):
+            return "bread"
+    core = flat.split(" met ")[0]                  # generic bread: dish word only
+    for tok in tokens(core):
+        if any(tok.startswith(p) for p in TITLE_BREAD_WEAK):
+            return "bread"
     return None
 
 
@@ -98,19 +161,23 @@ def _mass(ing) -> float:
 
 
 def classify_staple(title: str, ings: list) -> str | None:
-    """Pick the one staple base a recipe is built on (title first, then bulk)."""
-    tb = staple_of_text(title or "")
+    """Pick the one staple base a recipe is built on (see module docstring)."""
+    tb = _title_base(title)
     if tb:
         return tb
     best, best_mass = None, -1.0
     for ing in ings:
-        base = staple_of_text(_text(ing))
+        base = _family_of(_text(ing), NONBREAD)   # bread excluded: side, not base
         if base is None:
             continue
         m = _mass(ing)
         if m > best_mass:
             best, best_mass = base, m
-    return best
+    if best:
+        return best
+    if any(_has_strong_bread(_text(i)) for i in ings):
+        return "bread"
+    return None
 
 
 # --- reporting over the db --------------------------------------------------
@@ -120,8 +187,7 @@ def by_recipe(conn):
         "SELECT r.id, r.title, ri.ingredient_text, ri.raw_text, ri.qty, ri.unit "
         "FROM recipes r JOIN recipe_ingredients ri ON ri.recipe_id=r.id "
         "ORDER BY r.id, ri.position").fetchall()
-    cur_id = None
-    title = None
+    cur_id = title = None
     ings = []
     for row in rows:
         if row["id"] != cur_id:
@@ -160,7 +226,7 @@ def main():
     dump_path = config.DUMP_DIR / "staples.txt"
     dist = Counter()
     with open(dump_path, "w", encoding="utf-8") as f:
-        for rid, title, base, staples in by_recipe(conn):
+        for _rid, title, base, staples in by_recipe(conn):
             dist[base or "none"] += 1
             f.write(f"[{base or 'none':<6}] {title}\n")
             f.write(f"         staples: {staples or '-'}\n")
