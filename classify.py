@@ -38,10 +38,13 @@ def tokens(text: str):
 UNITS = {
     "g": "g", "gr": "g", "gram": "g", "grammen": "g",
     "kg": "kg", "kilo": "kg",
-    "ml": "ml", "cl": "cl", "dl": "dl", "l": "l", "liter": "l",
+    "ml": "ml", "cl": "cl", "dl": "dl", "deciliter": "dl", "deciliters": "dl",
+    "l": "l", "liter": "l",
     "el": "tbsp", "eetlepel": "tbsp", "eetlepels": "tbsp", "tbsp": "tbsp",
+    # Belgian recipes abbreviate koffielepel -> 'kl' (tsp), the partner of
+    # 'el' (eetlepel -> tbsp). Without it 'kl' leaks into the ingredient text.
     "tl": "tsp", "theelepel": "tsp", "theelepels": "tsp", "koffielepel": "tsp",
-    "tsp": "tsp",
+    "koffielepels": "tsp", "kl": "tsp", "tsp": "tsp",
     "snuf": "pinch", "snufje": "pinch", "mespunt": "pinch",
     "teen": "clove", "teentje": "clove", "teentjes": "clove",
     "stuk": "piece", "stuks": "piece", "stuk(s)": "piece",
@@ -57,6 +60,27 @@ _QTY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Some sources put the amount AFTER the name instead of before it. Delhaize's
+# 'wild' route emits 'bloem 25 g', 'citroen 1', 'komkommer 0,3'. This matches a
+# quantity (+ optional unit) anchored to the END of the string, and is only
+# tried when the leading pattern above finds nothing.
+_TRAIL_QTY_RE = re.compile(
+    r"\s+(?P<qty>\d+\s*[-–/]\s*\d+|\d+[\.,]?\d*|[½¼¾⅓⅔])\s*"
+    r"(?P<unit>[a-zà-ÿ\(\)]+)?\.?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _to_qty(raw_qty: str):
+    """'2,5' -> 2.5, '½' -> 0.5, '2-3'/'1/2' -> lower bound. None if unparseable."""
+    if raw_qty in _FRACTIONS:
+        return _FRACTIONS[raw_qty]
+    first = re.split(r"[-–/]", raw_qty)[0]
+    try:
+        return float(first.replace(",", "."))
+    except ValueError:
+        return None
+
 
 def parse_ingredient(raw: str) -> dict:
     """Split '500 g prei, in ringen' -> qty/unit/ingredient/prep.
@@ -69,15 +93,7 @@ def parse_ingredient(raw: str) -> dict:
 
     m = _QTY_RE.match(text)
     if m:
-        raw_qty = m.group("qty")
-        if raw_qty in _FRACTIONS:
-            qty = _FRACTIONS[raw_qty]
-        else:
-            first = re.split(r"[-–/]", raw_qty)[0]
-            try:
-                qty = float(first.replace(",", "."))
-            except ValueError:
-                qty = None
+        qty = _to_qty(m.group("qty"))
         cand = (m.group("unit") or "").strip(".()")
         if cand in UNITS:
             unit = UNITS[cand]
@@ -88,6 +104,18 @@ def parse_ingredient(raw: str) -> dict:
             text = text[m.start("unit"):] if m.group("unit") else text[m.end():]
         else:
             text = text[m.end():]
+    else:
+        # No leading quantity -> try a trailing one (Delhaize-style).
+        tm = _TRAIL_QTY_RE.search(text)
+        if tm:
+            name = text[:tm.start()].strip(" .,")
+            cand = (tm.group("unit") or "").strip(".()")
+            q = _to_qty(tm.group("qty"))
+            # Accept only if a name survives and the trailer is a real unit or a
+            # bare count ('citroen 1'). A trailing non-unit word ('2 blokken')
+            # means the number probably isn't a quantity -- leave text intact.
+            if name and q is not None and (cand in UNITS or not cand):
+                qty, unit, text = q, UNITS.get(cand), name
 
     prep = None
     if "," in text:

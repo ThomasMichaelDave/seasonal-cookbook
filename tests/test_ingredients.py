@@ -15,6 +15,14 @@ from classify import parse_ingredient
         ("2 tl komijnpoeder", 2.0, "tsp", "komijnpoeder"),
         ("½ knolselder", 0.5, None, "knolselder"),
         ("2 uien, gesnipperd", 2.0, None, "uien"),
+        # Belgian koffielepel abbreviation and spelled-out deciliter
+        ("2 kl kruidenmix", 2.0, "tsp", "kruidenmix"),
+        ("3 deciliter melk", 3.0, "dl", "melk"),
+        # trailing quantity (Delhaize 'wild' route): amount AFTER the name
+        ("bloem 25 g", 25.0, "g", "bloem"),
+        ("citroen 1", 1.0, None, "citroen"),
+        ("droge witte wijn 20 cl", 20.0, "cl", "droge witte wijn"),
+        ("komkommer 0,3", 0.3, None, "komkommer"),   # was corrupted to "komkommer 0"
     ],
 )
 def test_parse_quantities(raw, qty, unit, ingredient):
@@ -22,6 +30,13 @@ def test_parse_quantities(raw, qty, unit, ingredient):
     assert p["qty"] == pytest.approx(qty)
     assert p["unit"] == unit
     assert p["ingredient_text"] == ingredient
+
+
+def test_trailing_qty_only_when_no_leading():
+    # a trailing non-unit word must not be mistaken for a quantity
+    p = parse_ingredient("halloumi 2 blokken")
+    assert p["qty"] is None
+    assert p["ingredient_text"] == "halloumi 2 blokken"
 
 
 def test_prep_note_split_on_comma():

@@ -182,15 +182,29 @@ def probe(conn, name, urls, source_id, lang, dump):
             parsed.append(p)
         mark_heroes(rec.get("title") or "", parsed)
 
-        cur = conn.execute(
-            "INSERT OR IGNORE INTO recipes(url, source_id, lang, title, servings, "
+        # Re-parsing from cache is a supported, repeated operation (decision
+        # #1), so this must be idempotent. INSERT OR IGNORE + lastrowid is not:
+        # on a re-run the row already exists, the insert is ignored, and
+        # lastrowid points at nothing -- the child insert then trips the FK.
+        # Upsert the recipe, read its real id, and clear its prior ingredient
+        # rows before re-inserting.
+        conn.execute(
+            "INSERT INTO recipes(url, source_id, lang, title, servings, "
             "total_min, diet, diet_evidence, parsed_at, parser, parser_version) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(url) DO UPDATE SET "
+            "  lang=excluded.lang, title=excluded.title, servings=excluded.servings, "
+            "  total_min=excluded.total_min, diet=excluded.diet, "
+            "  diet_evidence=excluded.diet_evidence, parsed_at=excluded.parsed_at, "
+            "  parser=excluded.parser, parser_version=excluded.parser_version",
             (url, source_id, lang, rec.get("title"), rec.get("servings"),
              rec.get("total_min"), diet, "\n".join(evidence), now(),
              rec["parser"], rec.get("parser_version")),
         )
-        rid = cur.lastrowid
+        rid = conn.execute(
+            "SELECT id FROM recipes WHERE url=?", (url,)
+        ).fetchone()["id"]
+        conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id=?", (rid,))
         for i, p in enumerate(parsed):
             cid = None
             if p["canonical"]:

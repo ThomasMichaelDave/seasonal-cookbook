@@ -42,6 +42,17 @@ DIET_CASES = [
     ("200 g gerookte zalm", "omnivore"),
     ("6 plakjes spek", "omnivore"),
 
+    # --- from the first live crawl (15gram / dagelijksekost / delhaize) --
+    ("300 g steak", "omnivore"),            # named cut, no "vlees" stem
+    ("2,5 kg entrecote", "omnivore"),
+    ("chateaubriand 550 g", "omnivore"),
+    ("120 g sardienen in olijfolie", "omnivore"),   # NL plural of "sardine"
+    ("800 g grieten", "omnivore"),          # turbot
+    ("venusschelpen 2 kg", "omnivore"),
+    ("halloumi 2 blokken", "vegetarian"),   # cheese, not vegan
+    ("gehakte bieslook 2 el", "vegan"),     # "chopped", NOT minced meat
+    ("2 el gehakte peterselie", "vegan"),
+
     # --- genuinely ambiguous -> uncertain ------------------------------
     ("1 blokje bouillon", "uncertain"),
     ("2 el pesto", "uncertain"),            # classic pesto has pecorino

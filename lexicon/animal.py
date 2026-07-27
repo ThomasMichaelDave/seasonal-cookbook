@@ -45,6 +45,11 @@ SAFE_COMPOUNDS = {
     "wilde rijst", "wilderijst", "hamburgerbroodje", "hamburgerbroodjes",
     "roomboterletter", "visbloem", "zeewier", "zeezout", "zeekraal",
     "kaasplantje", "boterbloemen",
+    # "gehakte" is the past participle "chopped" (gehakte ui, gehakte
+    # peterselie), NOT the noun "gehakt" (minced meat). The MEAT prefix
+    # "gehakt" would otherwise fire on it. Stripping only the adjectival form
+    # leaves "gehakt"/"gehaktballen" to still classify as meat.
+    "gehakte", "gehakten",
     # bouillon that is explicitly vegetable
     "groentebouillon", "groentenbouillon", "groentebouillonblokje",
     "bouillon de legumes", "bouillon de legume",
@@ -70,6 +75,8 @@ MEAT = {
     "kippenbouillon", "runderbouillon", "vleesbouillon", "kalfsfond", "fond",
     "filet américain", "americain", "vol-au-vent-vulling",
     "stoofvlees", "carbonade", "bouletten", "frikandel",
+    # named cuts that carry no "vlees"/"rund" stem, so nothing else catches them
+    "steak", "steaks", "biefstuk", "entrecote", "chateaubriand", "tournedos",
     # FR
     "boeuf", "porc", "poulet", "agneau", "veau", "lapin", "canard", "dinde",
     "jambon", "saucisse", "saucisson", "lardons", "viande", "volaille",
@@ -85,6 +92,7 @@ FISH = {
     "garnaal", "garnalen", "scampi", "mossel", "mosselen", "oester", "oesters",
     "krab", "kreeft", "langoustine", "inktvis", "calamares", "calamari",
     "sint-jakobsschelp", "sint-jakobsschelpen", "coquilles", "surimi",
+    "sardien", "sardienen", "griet", "grieten", "venusschelp", "venusschelpen",
     "vissaus", "visbouillon", "visfond", "worcestershire", "worcestershiresaus",
     "kaviaar", "gerookte", "rolmops", "haringfilet",
     # FR
@@ -103,7 +111,7 @@ DAIRY = {
     "crème fraîche", "boter", "roomboter", "ghee", "kaas", "kaasje",
     "mozzarella", "parmezaan", "parmezaanse", "grana", "pecorino", "feta",
     "ricotta", "mascarpone", "gorgonzola", "brie", "camembert", "gruyere",
-    "gruyère", "emmentaler", "cheddar", "geitenkaas", "roomkaas",
+    "gruyère", "emmentaler", "cheddar", "geitenkaas", "roomkaas", "halloumi",
     "plattekaas", "kwark", "hüttenkäse", "yoghurt", "vla", "pudding",
     "wei", "lactose",
     # FR
@@ -160,9 +168,9 @@ MEAT_PREFIXES = {
 
 FISH_PREFIXES = {
     "vis", "zalm", "kabeljauw", "tonijn", "garnaal", "garnalen", "mossel",
-    "oester", "ansjovis", "sardine", "haring", "makreel", "forel", "schol",
+    "oester", "ansjovis", "sardien", "haring", "makreel", "forel", "schol",
     "scampi", "krab", "kreeft", "inktvis", "surimi", "coquille", "zeevruchten",
-    "poisson", "saumon", "crevette",
+    "venusschelp", "poisson", "saumon", "crevette",
 }
 
 DAIRY_PREFIXES = {
