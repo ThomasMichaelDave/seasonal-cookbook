@@ -3,11 +3,12 @@
 Point-in-time snapshot for review. Written to be scrutinised: it flags what is
 tested, what is heuristic, and what is unbuilt.
 
-- **Branch:** `claude/archive-upload-planning-4kcb54`
-- **Head:** `b498ccc`
-- **Tests:** 239 passing, no network required
-- **Code:** ~2,700 LOC across 15 root modules + 14 test files
+- **Branch:** `claude/archive-upload-planning-4kcb54` (latest on branch)
+- **Tests:** 268 passing, no network required
+- **Code:** ~3,000 LOC across 18 root modules + test files
 - **Corpus (owner's machine):** 604 recipes, 8,773 ingredient lines — see §4
+- **Recent:** external-review fixes (courses.py collisions, test methodology,
+  per-month coverage metric, shared `matching.py`) all landed.
 
 ---
 

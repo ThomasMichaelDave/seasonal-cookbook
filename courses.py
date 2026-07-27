@@ -16,7 +16,7 @@ from collections import Counter
 
 import config
 import db
-from classify import norm, deaccent, tokens
+from matching import norm, deaccent, tokens, hit
 
 # Unambiguous sweet titles, matched as substrings (chosen to avoid savoury
 # friends: 'compote' is out -- tomatencompote/uiencompote are savoury).
@@ -53,19 +53,10 @@ DESSERT_CONTEXT = {
 SIDE_SUBSTR = {"loempia", "frietjes uit", "kroketten uit", "bitterbal",
                "smoothie", "milkshake", "cocktail", "mocktail"}
 
-MIN_PREFIX = 4
 # Tokens ending in -ijs that are NOT ice cream. 'radijs' is the important one:
 # a Velt crop (Mar-Oct), so miscategorising it silently hides a whole salad
 # season from the planner.
 NOT_ICE = {"prijs", "radijs", "wijs", "grijs", "reis"}
-
-
-def _matches(tok: str, term: str) -> bool:
-    return tok == term or (len(term) >= MIN_PREFIX and tok.startswith(term))
-
-
-def _hit(toks, markers) -> bool:
-    return any(_matches(tok, m) for tok in toks for m in markers)
 
 
 def _is_ice(tok: str) -> bool:
@@ -86,11 +77,11 @@ def classify_course(title: str, ingredient_texts=()) -> str:
         return "dessert"
     if any(tok.startswith(p) for tok in title_toks for p in SWEET_PREFIX):
         return "dessert"
-    if "crumble" in t and _hit(all_toks, DESSERT_CONTEXT):
+    if "crumble" in t and hit(all_toks, DESSERT_CONTEXT):
         return "dessert"
 
     if any(b in t for b in AMBIG_BAKE):
-        return "main" if _hit(all_toks, SAVOURY_MARKERS) else "dessert"
+        return "main" if hit(all_toks, SAVOURY_MARKERS) else "dessert"
 
     if any(s in t for s in SIDE_SUBSTR):
         return "side"

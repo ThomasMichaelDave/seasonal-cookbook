@@ -29,11 +29,10 @@ from collections import Counter
 
 import config
 import db
-from classify import norm, deaccent, tokens
+from matching import norm, deaccent, tokens, hit, strip_false_friends
 
 BASE_ORDER = ["pasta", "potato", "rice", "grain", "bread"]
 NONBREAD = ("pasta", "potato", "rice", "grain")
-MIN_PREFIX = 4
 
 STAPLE_TERMS = {
     "pasta": {
@@ -98,22 +97,12 @@ TITLE_BREAD_STRONG = {
 TITLE_BREAD_WEAK = {"brood", "broodje", "toast"}
 
 
-def _matches(tok: str, term: str) -> bool:
-    d = deaccent(term)
-    return tok == d or (len(d) >= MIN_PREFIX and tok.startswith(d))
-
-
 def _family_of(text: str, families) -> str | None:
     """First family (in `families` order) whose term matches a token, else None."""
-    flat = deaccent(norm(text))
-    for bad in NOT_A_STAPLE:
-        if bad in flat:
-            flat = flat.replace(bad, " ")
-    toks = tokens(flat)
+    toks = tokens(strip_false_friends(text, NOT_A_STAPLE))
     for base in families:
-        for tok in toks:
-            if any(_matches(tok, term) for term in STAPLE_TERMS[base]):
-                return base
+        if hit(toks, STAPLE_TERMS[base]):
+            return base
     return None
 
 
@@ -123,8 +112,7 @@ def staple_of_text(text: str) -> str | None:
 
 
 def _has_strong_bread(text: str) -> bool:
-    toks = tokens(deaccent(norm(text)))
-    return any(_matches(tok, t) for tok in toks for t in BREAD_STRONG)
+    return hit(tokens(deaccent(norm(text))), BREAD_STRONG)
 
 
 def _title_base(title: str) -> str | None:

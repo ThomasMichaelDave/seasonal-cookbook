@@ -1,6 +1,5 @@
 """Ingredient parsing, diet classification, and seasonal scoring."""
 import re
-import unicodedata
 
 from lexicon.animal import (
     SAFE_COMPOUNDS, MEAT, FISH, DAIRY, EGG, HONEY, AMBIGUOUS,
@@ -8,28 +7,11 @@ from lexicon.animal import (
     HONEY_PREFIXES, MIN_PREFIX,
 )
 from lexicon.seasonal import PRODUCE
+# One tokeniser for the whole project. Re-exported here so existing
+# `from classify import norm/deaccent/tokens` imports keep working.
+from matching import norm, deaccent, tokens
 
-# ---------------------------------------------------------------------------
-# Normalisation
-# ---------------------------------------------------------------------------
 _WS = re.compile(r"\s+")
-_TOKEN = re.compile(r"[a-zà-ÿ]+", re.IGNORECASE)
-
-
-def norm(text: str) -> str:
-    """Lowercase, collapse whitespace. Accents are KEPT (French needs them)."""
-    return _WS.sub(" ", (text or "").lower().strip())
-
-
-def deaccent(text: str) -> str:
-    return "".join(
-        c for c in unicodedata.normalize("NFD", text)
-        if unicodedata.category(c) != "Mn"
-    )
-
-
-def tokens(text: str):
-    return _TOKEN.findall(norm(text))
 
 
 # ---------------------------------------------------------------------------
