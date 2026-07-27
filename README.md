@@ -24,6 +24,20 @@ Seasonal backbone: **Velt *Groente- en fruitkalender*** (2019) — 421 rows, 70
 crops, all 12 months. See `docs/velt.md`. A v2 winter-coverage survey (Indian /
 Korean / N-Chinese / Greek) is in `docs/vegan_sources.md`.
 
+### Vetting a new source
+
+Before adding a site to `config.SOURCES`, check whether this pipeline can parse
+it — recon only, one polite fetch per URL:
+
+```bat
+py check_source.py https://some-site.com/a-recipe/
+```
+
+It reports native `recipe-scrapers` support, robots.txt, and — for each recipe
+URL — which parser route wins (`recipe_scrapers` / `wild` / `jsonld` /
+`nextdata`) plus the ingredients/servings/instructions it extracted. `route:
+None` means it would need a dedicated parser.
+
 ---
 
 ## Setup (Windows, behind a corporate proxy such as Zscaler)
@@ -86,6 +100,7 @@ full recipe per dish.
 | `persist.py` | idempotent recipe storage (shared by crawl + spike) |
 | `crawl.py` | wider crawl: discover, fetch, parse, store; `--list-only`/`--limit`/`--reparse` |
 | `spike.py` | the original Phase-0 probe (20/5/5) → `dumps/ingredients.txt` |
+| `check_source.py` | vet a candidate site: native support, robots, which route wins (recon, not a crawl) |
 | `runlog.py` | tee logging to timestamped `logs/` |
 
 **Classification** (all offline, dump-reviewable)
