@@ -91,7 +91,14 @@ SOURCES = {
     "plantyou": {
         "base_url": "https://plantyou.com",
         "lang": "en",
-        "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
+        # Recipes are root-slug posts (/easy-vegan-banana-bread/). Anchor to the
+        # domain so ONLY single-segment paths match -- this structurally drops
+        # the /category/, /tag/, /author/ and /page/N listing pages the old
+        # catch-all `/[^/]+/?$` swept in via .search() (they were the bulk of
+        # the parse_failed in the first crawl). Root-level editorial posts
+        # (travel, listicles) still match but are harmlessly rejected by the
+        # wild route -- no recipe JSON-LD, so they never reach the corpus.
+        "url_patterns": [r"^https?://[^/]+/[^/]+/?$"],
         "parser": "wild",                 # no native scraper -> wild_mode/JSON-LD
     },
 }
