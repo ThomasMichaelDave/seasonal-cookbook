@@ -71,7 +71,7 @@ PRODUCE = {
     "prei":          ("vegetable", "leek",           ["poireau", "poireaux", "leek", "leeks"]),
 
     # --- fruiting & summer -------------------------------------------------
-    "tomaat":        ("vegetable", "tomato",         ["tomaten", "kerstomaat", "vleestomaat", "vleestomaten", "tomate", "tomates", "tomato"]),
+    "tomaat":        ("vegetable", "tomato",         ["tomaten", "kerstomaat", "vleestomaat", "vleestomaten", "tomate", "tomates", "tomato", "tomatoes"]),
     "komkommer":     ("vegetable", "cucumber",       ["concombre", "cucumber"]),
     "courgette":     ("vegetable", "courgette",      ["zucchini"]),
     "aubergine":     ("vegetable", "aubergine",      ["eggplant"]),
@@ -176,6 +176,33 @@ APPROXIMATE = {
 }
 for _canon, _extra in APPROXIMATE.items():
     PRODUCE[_canon][2].extend(_extra)
+
+
+# --- processed "false friends" ---------------------------------------------
+# Phrases that CONTAIN a produce word but are a processed pantry item, not fresh
+# seasonal produce: a jar of ketchup is not a tomato in season. match_seasonal
+# strips these BEFORE matching, the same strip-first idea SAFE_COMPOUNDS uses for
+# the diet classifier. Only SPACED (mostly English / transliterated) forms need
+# listing -- Dutch closed compounds already fail the \b word-boundary match
+# (`appelmoes`, `tomatenpuree`, `knoflookpoeder` never matched `appel`/`tomaat`/
+# `knoflook`). Curated on purpose: precision over recall. Genuinely-fresh
+# compounds (kerstomaat, vleestomaat) are deliberately kept OUT so they still
+# match. Extend as the corpus surfaces more.
+NONFRESH_FORMS = {
+    # tomato: concentrates, condiments, preserved -- not a fresh tomato
+    "tomato ketchup", "tomato paste", "tomato puree", "tomato passata",
+    "tomato concentrate", "sun dried tomato", "sun-dried tomato",
+    "sundried tomato", "sun dried tomatoes", "sun-dried tomatoes",
+    "sundried tomatoes",
+    # apple: cider / vinegar / juice / sauce
+    "apple cider vinegar", "apple cider", "apple juice", "apple sauce",
+    # garlic & onion: pastes, powders, salts (aromatic, but wrong on a shop list)
+    "garlic paste", "ginger garlic paste", "ginger-garlic paste",
+    "garlic powder", "garlic granules", "garlic salt",
+    "onion powder", "onion granules", "onion salt",
+    # potato: starch / flour, not a fresh tuber
+    "potato starch", "potato flour",
+}
 
 
 # Lexicon entries the Velt 2019 calendar does NOT list. They still match in

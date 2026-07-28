@@ -6,7 +6,7 @@ from lexicon.animal import (
     MEAT_PREFIXES, FISH_PREFIXES, DAIRY_PREFIXES, EGG_PREFIXES,
     HONEY_PREFIXES, MIN_PREFIX,
 )
-from lexicon.seasonal import PRODUCE
+from lexicon.seasonal import PRODUCE, NONFRESH_FORMS
 # One tokeniser for the whole project. Re-exported here so existing
 # `from classify import norm/deaccent/tokens` imports keep working.
 from matching import norm, deaccent, tokens
@@ -273,14 +273,25 @@ def _shorten_plural(word: str) -> str | None:
 
 ALIAS_INDEX = build_alias_index()
 
+# Longest-first so 'apple cider vinegar' is stripped before 'apple cider'.
+_NONFRESH_SORTED = sorted((norm(f) for f in NONFRESH_FORMS), key=len, reverse=True)
+
 
 def match_seasonal(ingredient_text: str) -> str | None:
     """Return canonical_nl for a seasonal item, else None.
 
     Longest-match-first so 'rode bes' beats 'bes' and 'knolselder' beats
     'selder'.
+
+    Processed 'false friends' (tomato ketchup, apple cider, garlic paste) are
+    stripped FIRST, so the produce word inside a pantry product does not read as
+    fresh seasonal produce. Same strip-then-match order as SAFE_COMPOUNDS in the
+    diet classifier -- see lexicon.seasonal.NONFRESH_FORMS.
     """
     text = norm(ingredient_text)
+    for phrase in _NONFRESH_SORTED:
+        if phrase in text:
+            text = text.replace(phrase, " ")
     flat = deaccent(text)
     for alias in sorted(ALIAS_INDEX, key=len, reverse=True):
         if re.search(rf"\b{re.escape(alias)}\b", text) or \
