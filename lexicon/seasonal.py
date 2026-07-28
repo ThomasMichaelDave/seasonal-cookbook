@@ -167,8 +167,12 @@ for _canon, _extra in TRANSLITERATED.items():
 # delete this block (they revert to unknown), or retarget these terms to
 # `radijs` if you'd rather treat them as a summer radish.
 APPROXIMATE = {
-    "rammenas": ["daikon", "daikon radish", "mooli", "muli",
-                 "bai luobo", "white radish", "rettich"],
+    # `luobo` is generic Chinese radish; `hu luobo` (carrot -> wortel) is a
+    # LONGER alias, so longest-match-first keeps carrot from collapsing to radish.
+    # Bare Korean `mu` is deliberately omitted -- a 2-char whole-word match is too
+    # collision-prone; `korean radish` covers it safely.
+    "rammenas": ["daikon", "daikon radish", "mooli", "muli", "luobo",
+                 "bai luobo", "white radish", "korean radish", "rettich"],
 }
 for _canon, _extra in APPROXIMATE.items():
     PRODUCE[_canon][2].extend(_extra)

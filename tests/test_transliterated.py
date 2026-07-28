@@ -50,7 +50,8 @@ NO_VELT_EQUIVALENT = [
 # Owner-reversible approximations (a different vegetable, closest Velt crop).
 APPROX_MAPS = [
     ("daikon", "rammenas"), ("mooli", "rammenas"), ("white radish", "rammenas"),
-    ("bai luobo", "rammenas"), ("rettich", "rammenas"),
+    ("bai luobo", "rammenas"), ("luobo", "rammenas"),
+    ("korean radish", "rammenas"), ("rettich", "rammenas"),
 ]
 
 
