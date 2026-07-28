@@ -118,6 +118,44 @@ PRODUCE = {
     "kweepeer":      ("fruit", "quince",             ["kwee", "coing", "quince"]),
 }
 
+# --- v2 transliterated aliases ---------------------------------------------
+# Romanised Hindi / Korean / Japanese / Mandarin-pinyin names for produce that
+# ALREADY has a Belgian Velt canonical. Point of the v2 winter crawl is Punjabi
+# /Korean/N-Chinese/Japanese cooking of Belgian winter crops, and those recipes
+# name their vegetables in transliteration, not Dutch -- without this pass the
+# match rate on the eastern corpus is poor (docs/vegan_sources.md, prereq #2).
+#
+# ONLY clean 1:1 mappings live here. Three deliberate exclusions:
+#   * No Velt equivalent -> intentionally absent, will score `unknown` (skipped),
+#     which is correct: bhindi/okra, karela (bitter gourd), methi (fenugreek
+#     greens), gobo (burdock), taro, renkon (lotus root), drumstick.
+#   * Approximations are NOT done silently (repo rule): daikon/mooli/mu/luobo ->
+#     rammenas is a different vegetable in the same season/role, left out here.
+#   * Ambiguous generic-cabbage words (Hindi `patta gobi`, and bare `kool`) are
+#     left unmapped, same call the owner already made for `kool`: a head-cabbage
+#     word that is white/savoy/pointed/red maybe a third of the time each.
+# NB `gobi`/`phool gobi` = cauliflower (-> bloemkool); only `patta gobi` is the
+# ambiguous cabbage one, so cauliflower is safe to map and IS mapped.
+TRANSLITERATED = {
+    "aubergine":    ["baingan", "baigan", "brinjal", "gaji", "nasu", "nasubi", "qiezi"],
+    "bloemkool":    ["gobi", "gobhi", "phool gobi", "phoolgobi", "phool gobhi"],
+    "aardappel":    ["aloo", "gamja", "jagaimo", "tudou", "malingshu"],
+    "ui":           ["pyaz", "pyaaz", "yangpa", "tamanegi", "yangcong"],
+    "knoflook":     ["lehsun", "lasan", "maneul", "ninniku", "dasuan"],
+    "spinazie":     ["palak", "sigeumchi", "horenso", "bocai"],
+    "doperwt":      ["matar", "mutter"],
+    "wortel":       ["gajar", "gajor", "danggeun", "dangeun", "ninjin", "hu luobo"],
+    "raap":         ["shalgam", "shaljam"],
+    # unambiguous napa-cabbage terms only; bok-choy words stay on `paksoi`
+    "chinese kool": ["baechu", "hakusai", "da baicai", "dabaicai"],
+    "courgette":    ["ae hobak", "aehobak"],
+    "pompoen":      ["kabocha", "danhobak", "nangua"],
+    "tomaat":       ["xihongshi", "fanqie"],
+}
+for _canon, _extra in TRANSLITERATED.items():
+    PRODUCE[_canon][2].extend(_extra)   # the alias list is the mutable 3rd slot
+
+
 # Lexicon entries the Velt 2019 calendar does NOT list. They still match in
 # recipes; they simply have no seasonality rows, and season_score treats
 # "no data" as UNKNOWN (skipped), never as out-of-season.
