@@ -174,8 +174,10 @@ rammenas): Punjabi/North Indian, Korean temple/home, Northern Chinese, Japanese
 nimono, Turkish/Balkan. Mediterranean/Levantine material peaks Jun–Oct and is
 already covered by the Belgian sources. Prerequisites, in order (from the
 survey — do NOT crawl before these):
-1. Add a `cuisine` column to `recipes` (a Belgian stoofpotje and a Sichuan
-   stir-fry must be distinguishable at plan time).
+1. ✅ **DONE** — `cuisine` column on `recipes`. Declared per-source in
+   `config.SOURCES` (`belgian` / `indian` / `chinese` / `greek` /
+   `western-vegan`), denormalized at persist like `lang`, migrated on an older
+   db and backfilled by `crawl.py --reparse`. `tests/test_cuisine.py`.
 2. A transliterated-Hindi / romanised-Korean+Japanese produce **alias pass**
    (mooli, gobi, baingan, bhindi, karela, daikon…) — else match rates are poor.
 3. Start with THREE, chosen for winter coverage: `vegrecipesofindia.com`

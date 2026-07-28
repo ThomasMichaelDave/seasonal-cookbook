@@ -53,9 +53,13 @@ CREATE TABLE IF NOT EXISTS recipes (
     title          TEXT,
     servings       INTEGER,
     total_min      INTEGER,
-    -- course, staple_base and cuisine are DERIVED (courses.py / staples.py) and
-    -- computed at read time, not stored. A column that is never populated lies;
-    -- when v2 needs a persisted `cuisine`, add it as a deliberate migration.
+    -- course and staple_base stay DERIVED (courses.py / staples.py), computed
+    -- at read time. `cuisine` is the exception: it is a per-source FACT declared
+    -- in config.SOURCES (a Belgian stoofpotje vs a Sichuan stir-fry must be
+    -- distinguishable at plan time -- v2 prerequisite), so it IS stored. It is
+    -- denormalized here like `lang`; populated at persist from the source's
+    -- configured cuisine, and backfilled on an older db by reparse.
+    cuisine        TEXT,      -- belgian | indian | chinese | greek | western-vegan
     diet           TEXT,      -- vegan | vegetarian | omnivore | uncertain
     diet_evidence  TEXT,      -- which terms triggered it, for auditing
     parsed_at      TEXT NOT NULL,
@@ -141,6 +145,10 @@ def init(conn):
     cols = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
     if "instructions" not in cols:
         conn.execute("ALTER TABLE recipes ADD COLUMN instructions TEXT")
+    # Migration: `cuisine` (v2). Bare ALTER here; existing rows are backfilled
+    # from config by `crawl.py --reparse`, exactly as instructions were.
+    if "cuisine" not in cols:
+        conn.execute("ALTER TABLE recipes ADD COLUMN cuisine TEXT")
     conn.commit()
 
 

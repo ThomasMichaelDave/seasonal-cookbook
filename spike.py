@@ -175,7 +175,8 @@ def probe(conn, name, urls, source_id, lang, dump):
         # writing here -- that is the probe's whole reason for existing.
         diet, evidence, parsed = persist.analyse(rec)
         persist.store_recipe(conn, url, source_id, lang, rec, diet, evidence,
-                             parsed, canon_map=cmap)
+                             parsed, canon_map=cmap,
+                             cuisine=config.SOURCES.get(name, {}).get("cuisine"))
 
         heroes = [p["canonical"] for p in parsed if p.get("is_hero") and p["canonical"]]
         dump.write(f"\n{'='*78}\n{name} | {rec.get('title')}\n{url}\n")

@@ -46,7 +46,7 @@ def analyse(rec: dict):
 
 
 def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed,
-                 canon_map=None) -> int:
+                 canon_map=None, cuisine=None) -> int:
     """Idempotent upsert of one recipe + its ingredient rows. Returns recipe id.
 
     Re-parsing from cache is a supported, repeated operation, so this must not
@@ -62,16 +62,17 @@ def store_recipe(conn, url, source_id, lang, rec, diet, evidence, parsed,
     # instructions are method prose -- personal/household use only, gitignored db
     # (docs/decisions.md #8). Facts (ingredients/qty/servings) are unaffected.
     conn.execute(
-        "INSERT INTO recipes(url, source_id, lang, title, servings, total_min, "
-        "diet, diet_evidence, parsed_at, parser, parser_version, instructions) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+        "INSERT INTO recipes(url, source_id, lang, cuisine, title, servings, "
+        "total_min, diet, diet_evidence, parsed_at, parser, parser_version, "
+        "instructions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(url) DO UPDATE SET "
-        "  lang=excluded.lang, title=excluded.title, servings=excluded.servings, "
-        "  total_min=excluded.total_min, diet=excluded.diet, "
-        "  diet_evidence=excluded.diet_evidence, parsed_at=excluded.parsed_at, "
-        "  parser=excluded.parser, parser_version=excluded.parser_version, "
+        "  lang=excluded.lang, cuisine=excluded.cuisine, title=excluded.title, "
+        "  servings=excluded.servings, total_min=excluded.total_min, "
+        "  diet=excluded.diet, diet_evidence=excluded.diet_evidence, "
+        "  parsed_at=excluded.parsed_at, parser=excluded.parser, "
+        "  parser_version=excluded.parser_version, "
         "  instructions=excluded.instructions",
-        (url, source_id, lang, rec.get("title"), rec.get("servings"),
+        (url, source_id, lang, cuisine, rec.get("title"), rec.get("servings"),
          rec.get("total_min"), diet, "\n".join(evidence), _now(),
          rec["parser"], rec.get("parser_version"), rec.get("instructions")),
     )

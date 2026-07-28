@@ -152,7 +152,8 @@ def crawl_source(conn, name, cfg, limit, list_only, assume_yes):
             else:
                 diet, ev, parsed = persist.analyse(rec)
                 persist.store_recipe(conn, url, sid, cfg["lang"], rec, diet, ev,
-                                     parsed, canon_map=cmap)
+                                     parsed, canon_map=cmap,
+                                     cuisine=cfg.get("cuisine"))
                 results[rec["parser"]] += 1
         if i % 20 == 0:
             conn.commit()
@@ -175,7 +176,7 @@ def reparse(conn):
     try:
         cmap = persist.canonical_map(conn)
         rows = conn.execute(
-            "SELECT p.url url, p.html html, s.id sid, s.lang lang "
+            "SELECT p.url url, p.html html, s.id sid, s.lang lang, s.name name "
             "FROM pages p JOIN frontier f ON f.url=p.url "
             "JOIN sources s ON f.source_id=s.id").fetchall()
         log("=" * 78)
@@ -188,8 +189,9 @@ def reparse(conn):
                 done["parse_failed"] += 1
                 continue
             diet, ev, parsed = persist.analyse(rec)
+            cuisine = config.SOURCES.get(r["name"], {}).get("cuisine")
             persist.store_recipe(conn, r["url"], r["sid"], r["lang"], rec,
-                                 diet, ev, parsed, canon_map=cmap)
+                                 diet, ev, parsed, canon_map=cmap, cuisine=cuisine)
             done[rec["parser"]] += 1
             if i % 100 == 0:
                 conn.commit()

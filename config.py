@@ -34,12 +34,14 @@ SOURCES = {
     "15gram": {
         "base_url": "https://15gram.be",
         "lang": "nl",
+        "cuisine": "belgian",
         "url_patterns": [r"/recepten?/"],
         "parser": "recipe_scrapers",      # native scraper: FifteenGram
     },
     "dagelijksekost": {
         "base_url": "https://dagelijksekost.vrt.be",
         "lang": "nl",
+        "cuisine": "belgian",
         "url_patterns": [r"/gerechten/", r"/recept"],
         # /gerechten/zoeken is the search/listing page, not a recipe -- it
         # matched the pattern and was the lone parse_failed in the first crawl.
@@ -49,6 +51,7 @@ SOURCES = {
     "delhaize": {
         "base_url": "https://www.delhaize.be",
         "lang": "nl",
+        "cuisine": "belgian",
         # Delhaize serves NL and FR; keep to NL for v1 so the lexicon stays
         # single-language. Add /fr/recettes/ later if you want the FR half.
         "url_patterns": [r"/nl/recept", r"/nl/inspiratie/recept"],
@@ -73,24 +76,28 @@ SOURCES = {
     "vegrecipesofindia": {
         "base_url": "https://www.vegrecipesofindia.com",
         "lang": "en",
+        "cuisine": "indian",
         "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
         "parser": "recipe_scrapers",      # native scraper (per survey)
     },
     "redhousespice": {
         "base_url": "https://redhousespice.com",
         "lang": "en",
+        "cuisine": "chinese",             # Northern Chinese specifically
         "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
         "parser": "recipe_scrapers",      # native scraper, Northern Chinese
     },
     "miakouppa": {
         "base_url": "https://www.miakouppa.com",
         "lang": "en",
+        "cuisine": "greek",
         "url_patterns": [r"/[^/]+/?$"],   # GUESS: root-slug posts
         "parser": "wild",                 # no native scraper -> wild_mode/JSON-LD
     },
     "plantyou": {
         "base_url": "https://plantyou.com",
         "lang": "en",
+        "cuisine": "western-vegan",       # modern plant-based, not a regional tradition
         # Recipes are root-slug posts (/easy-vegan-banana-bread/). Anchor to the
         # domain so ONLY single-segment paths match -- this structurally drops
         # the /category/, /tag/, /author/ and /page/N listing pages the old
