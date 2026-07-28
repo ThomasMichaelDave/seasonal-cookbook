@@ -11,12 +11,16 @@ ingredient count, servings, instructions).
 
     py check_source.py https://plantyou.com/vegan-chili/
     py check_source.py URL1 URL2 ...
+    py check_source.py --match https://www.vegrecipesofindia.com/aloo-gobi/
+       (--match also prints diet + which ingredients resolve to a Velt canonical,
+        the way to confirm the transliterated aliases fire on live text)
 """
 import sys
 from urllib.parse import urlparse
 
 import fetch
 import parse
+import persist   # the real analyse pipeline: diet + seasonal canonical matches
 
 
 def host_of(url: str) -> str:
@@ -42,6 +46,19 @@ def assess(url: str, html: str | None) -> dict:
     }
 
 
+def season_report(rec: dict):
+    """(diet, [(raw, canonical, is_hero)...], n_ingredients) via the real pipeline.
+
+    Uses persist.analyse so this is EXACTLY what a crawl would store -- the way
+    to confirm a transliterated alias (gobi, baingan, hu luobo) actually resolves
+    on a source's live ingredient strings before committing to a full crawl.
+    """
+    diet, _evidence, parsed = persist.analyse(rec)
+    hits = [(p["raw"], p["canonical"], bool(p.get("is_hero")))
+            for p in parsed if p["canonical"]]
+    return diet, hits, len(parsed)
+
+
 def check_host(url: str):
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     native = parse.has_native_scraper(url)
@@ -53,7 +70,7 @@ def check_host(url: str):
     print(f"  sitemaps declared: {sms[:4] if sms else 'none in robots.txt'}")
 
 
-def check_url(url: str):
+def check_url(url: str, show_match: bool = False):
     print(f"\nrecipe: {url}")
     if not fetch.allowed(url):
         print("  robots.txt DISALLOWS this url -> do not crawl it.")
@@ -74,12 +91,21 @@ def check_url(url: str):
     print(f"     ingredients:  {a['n_ingredients']}")
     print(f"     servings:     {a['servings']}   total_min: {a['total_min']}")
     print(f"     instructions: {'yes' if a['instructions'] else 'no'}")
+    if show_match:
+        diet, hits, n = season_report(parse.parse_recipe(html, url))
+        print(f"     diet:         {diet}")
+        print(f"     seasonal:     {len(hits)}/{n} ingredient(s) matched a Velt canonical")
+        for raw, canon, hero in hits:
+            print(f"        - {canon}{' (HERO)' if hero else ''}  <-  {raw}")
 
 
 def main():
     urls = [u for u in sys.argv[1:] if u.startswith("http")]
+    show_match = "--match" in sys.argv
     if not urls:
-        print("usage: py check_source.py <recipe-url> [more-urls...]")
+        print("usage: py check_source.py [--match] <recipe-url> [more-urls...]")
+        print("  --match  also print diet + which ingredients resolve to a Velt")
+        print("           canonical (use it to verify the transliterated aliases)")
         return
     print("recon only -- one polite fetch per url (robots-checked, throttled).")
     seen = set()
@@ -89,7 +115,7 @@ def main():
             print()
             check_host(u)
             seen.add(h)
-        check_url(u)
+        check_url(u, show_match=show_match)
 
 
 if __name__ == "__main__":

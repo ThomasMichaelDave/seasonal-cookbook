@@ -39,3 +39,17 @@ def test_assess_native_flag_from_url():
 def test_host_of_strips_www():
     assert check_source.host_of("https://www.plantyou.com/recipe/x") == "plantyou.com"
     assert check_source.host_of("https://15gram.be/recepten/x") == "15gram.be"
+
+
+def test_season_report_resolves_transliterations_on_a_recipe():
+    # The --match verification: a romanised Indian recipe must resolve its
+    # produce to Velt canonicals via the real analyse pipeline.
+    rec = {"title": "Aloo gobi",
+           "ingredients": ["1 medium gobi, chopped", "3 aloo, diced",
+                           "2 tomaten", "1 tsp zout"],
+           "parser": "wild"}
+    diet, hits, n = check_source.season_report(rec)
+    canons = {c for _raw, c, _hero in hits}
+    assert {"bloemkool", "aardappel", "tomaat"} <= canons
+    assert n == 4                                   # zout doesn't resolve
+    assert any(hero for _r, c, hero in hits if c == "bloemkool")  # named in title
