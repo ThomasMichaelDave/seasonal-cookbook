@@ -156,6 +156,24 @@ for _canon, _extra in TRANSLITERATED.items():
     PRODUCE[_canon][2].extend(_extra)   # the alias list is the mutable 3rd slot
 
 
+# --- v2 approximations (owner-reversible) ----------------------------------
+# NOT facts, kept separate from TRANSLITERATED so the distinction stays loud.
+# daikon / mooli (large white winter radish) has no Velt crop of its own. The
+# closest is `rammenas` (black winter radish): same Jan-Mar/Oct-Dec window, same
+# culinary role, different vegetable. The survey (docs/vegan_sources.md) calls
+# this out as an owner decision -- taken here because it is what makes Japanese
+# nimono, Korean muguk and Northern-Chinese daikon dishes score a WINTER signal
+# instead of `unknown`, which is the whole point of the v2 crawl. To reverse:
+# delete this block (they revert to unknown), or retarget these terms to
+# `radijs` if you'd rather treat them as a summer radish.
+APPROXIMATE = {
+    "rammenas": ["daikon", "daikon radish", "mooli", "muli",
+                 "bai luobo", "white radish", "rettich"],
+}
+for _canon, _extra in APPROXIMATE.items():
+    PRODUCE[_canon][2].extend(_extra)
+
+
 # Lexicon entries the Velt 2019 calendar does NOT list. They still match in
 # recipes; they simply have no seasonality rows, and season_score treats
 # "no data" as UNKNOWN (skipped), never as out-of-season.

@@ -176,10 +176,13 @@ not just this one. Rule added, ten regression tests.
   ambiguous between white, savoy, pointed and red. Guessing `wittekool` would
   be wrong maybe a third of the time. Probably worth a low-confidence default,
   but that's a judgment call.
-- **`daikon` / `rettich`** → no match. Closest Velt crop is `rammenas` (black
-  winter radish) — same season, same role, different vegetable. Mapping
-  daikon→rammenas is an approximation, not a fact, so it wasn't done silently.
-  Needed for Japanese, Korean and Northern Chinese.
+- **`daikon` / `mooli` / `rettich` → `rammenas`** — RESOLVED. Closest Velt crop
+  is `rammenas` (black winter radish): same season, same role, different
+  vegetable. Done as an explicit, owner-reversible **approximation** (kept in a
+  separate `APPROXIMATE` block, not `TRANSLITERATED`, so the distinction stays
+  visible) because it is what gives Japanese/Korean/Northern-Chinese daikon
+  dishes a winter signal instead of `unknown`. Reverse by deleting the block or
+  retargeting to `radijs`.
 - **No Velt equivalent at all:** gobo/burdock, taro, lotus root, bok choy
   beyond `paksoi`, mustard greens, bitter gourd, drumstick. Some are grown in
   Belgium; Velt lists none of them. These will always score as *unknown*

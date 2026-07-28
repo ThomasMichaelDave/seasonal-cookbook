@@ -7,7 +7,7 @@ See docs/vegan_sources.md (prereq #2) and lexicon/seasonal.py TRANSLITERATED.
 import pytest
 
 from classify import match_seasonal
-from lexicon.seasonal import PRODUCE, TRANSLITERATED
+from lexicon.seasonal import PRODUCE, TRANSLITERATED, APPROXIMATE
 
 # (transliteration, expected canonical). One or two per language where it matters.
 MAPS = [
@@ -45,8 +45,12 @@ MAPS = [
 NO_VELT_EQUIVALENT = [
     "bhindi", "okra", "karela", "methi", "gobo", "taro", "renkon",
     "lotus root", "drumstick",
-    # deliberately-deferred approximations, must not silently resolve yet
-    "daikon", "mooli",
+]
+
+# Owner-reversible approximations (a different vegetable, closest Velt crop).
+APPROX_MAPS = [
+    ("daikon", "rammenas"), ("mooli", "rammenas"), ("white radish", "rammenas"),
+    ("bai luobo", "rammenas"), ("rettich", "rammenas"),
 ]
 
 
@@ -66,6 +70,19 @@ def test_no_velt_equivalent_stays_unknown(word):
     assert match_seasonal(word) is None
 
 
-def test_every_transliterated_canonical_exists():
-    unknown = [c for c in TRANSLITERATED if c not in PRODUCE]
-    assert not unknown, f"TRANSLITERATED targets a non-existent canonical: {unknown}"
+@pytest.mark.parametrize("text,canonical", APPROX_MAPS)
+def test_approximations_resolve_to_closest_velt_crop(text, canonical):
+    # daikon/mooli -> rammenas is a documented, owner-reversible approximation.
+    assert match_seasonal(text) == canonical
+
+
+def test_carrot_pinyin_not_shadowed_by_radish_approximation():
+    # `hu luobo` (carrot) must still win over the `bai luobo` (radish) approx:
+    # longest-match-first, and neither should collapse to the other.
+    assert match_seasonal("hu luobo") == "wortel"
+    assert match_seasonal("bai luobo") == "rammenas"
+
+
+def test_every_alias_target_canonical_exists():
+    unknown = [c for c in (*TRANSLITERATED, *APPROXIMATE) if c not in PRODUCE]
+    assert not unknown, f"alias block targets a non-existent canonical: {unknown}"

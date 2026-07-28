@@ -178,8 +178,13 @@ survey — do NOT crawl before these):
    `config.SOURCES` (`belgian` / `indian` / `chinese` / `greek` /
    `western-vegan`), denormalized at persist like `lang`, migrated on an older
    db and backfilled by `crawl.py --reparse`. `tests/test_cuisine.py`.
-2. A transliterated-Hindi / romanised-Korean+Japanese produce **alias pass**
-   (mooli, gobi, baingan, bhindi, karela, daikon…) — else match rates are poor.
+2. ✅ **DONE** — transliterated-Hindi / romanised-Korean+Japanese produce
+   **alias pass** (`lexicon/seasonal.py` `TRANSLITERATED`; baingan/gaji/nasu →
+   aubergine, gobi → bloemkool, aloo/gamja/jagaimo → aardappel, gajar/danggeun/
+   ninjin → wortel, baechu/hakusai → chinese kool, …). No-Velt-equivalent words
+   (okra/bhindi, karela, gobo, taro) stay `unknown` by design.
+   `daikon`/`mooli` → `rammenas` is an explicit, owner-reversible **approximation**
+   (`APPROXIMATE` block). `tests/test_transliterated.py`.
 3. Start with THREE, chosen for winter coverage: `vegrecipesofindia.com`
    (native scraper), `redhousespice.com` (native, Northern Chinese),
    `miakouppa.com` (wild_mode, Greek nistisima). English-language, so no new
@@ -226,16 +231,18 @@ Deferred lexicon polish (Tier 3, low priority): `champignonmix` and
 `stoofselder` don't match a seasonal canonical; `edamame` wrongly matches
 `prinsessenboon`. Seasonal-signal only, not diet.
 
-Open lexicon decisions raised by `docs/vegan_sources.md` (judgment calls, left
-for the owner):
+Open lexicon decisions raised by `docs/vegan_sources.md`:
 - **`kool` on its own** — common ("500 g kool") but ambiguous (white / savoy /
   pointed / red). A low-confidence default to `wittekool` would be wrong ~⅓ of
-  the time. Not mapped.
-- **`daikon` / `rettich`** — closest Velt crop is `rammenas` (same season, same
-  role, different vegetable). Mapping daikon→rammenas is an approximation, not a
-  fact, so not done silently. Needed for Japanese/Korean/N-Chinese.
+  the time. Still **not mapped**. Same call extends to Hindi `patta gobi`.
+- **`daikon` / `mooli` / `rettich` → `rammenas`** — DONE as an explicit
+  **approximation** (`lexicon/seasonal.py` `APPROXIMATE`, not `TRANSLITERATED`):
+  a different vegetable, closest Velt crop, same winter window and role. Taken
+  because it gives Japanese/Korean/N-Chinese daikon dishes a winter signal
+  instead of `unknown`. Reverse by deleting the block, or retarget to `radijs`.
 - **No Velt equivalent:** gobo, taro, lotus root, mustard greens, bitter gourd,
-  drumstick — will always score `unknown` (skipped), which is correct.
+  drumstick, okra/bhindi, methi — always score `unknown` (skipped), which is
+  correct; deliberately absent from the alias pass.
 
 Fixed from that survey: Dutch vowel-shortening plurals (`raap`→`rapen`, not
 `raapen`; `bloemkool`→`bloemkolen`; `pastinaak`→`pastinaken`; +7 more). Eight
