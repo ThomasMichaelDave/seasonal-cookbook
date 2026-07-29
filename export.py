@@ -53,7 +53,8 @@ def build_data(conn, include_instructions=True) -> dict:
 
     recipes = {}
     for row in conn.execute(
-        "SELECT r.id rid, r.title, r.url, r.diet, r.servings, r.instructions instr, "
+        "SELECT r.id rid, r.title, r.url, r.diet, r.cuisine, r.servings, "
+        "r.instructions instr, "
         "s.name src, ri.ingredient_text itext, ri.raw_text raw, ri.qty, ri.unit, "
         "c.name_nl canon, ri.is_hero hero "
         "FROM recipes r JOIN sources s ON r.source_id=s.id "
@@ -67,6 +68,7 @@ def build_data(conn, include_instructions=True) -> dict:
         r = recipes.setdefault(rid, {
             "id": rid, "title": row["title"], "url": row["url"],
             "source": row["src"], "diet": row["diet"] or "uncertain",
+            "cuisine": row["cuisine"] or "onbekend",
             "servings": row["servings"], "base": base_by.get(rid),
             "flexible": is_flexible(row["title"]),
             # method prose, personal/household use only (see decisions.md #8)
@@ -194,6 +196,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   .chip { background:var(--chip); border-radius:20px; padding:.05rem .55rem; font-size:.72rem; }
   .chip.base { color:var(--accent); font-weight:600; }
   .chip.neutral { color:var(--accent2); }
+  .chip.cuisine { color:var(--accent2); font-weight:600; }
   .reroll { margin-left:auto; cursor:pointer; border:none; background:none;
             color:var(--muted); font-size:.85rem; padding:.1rem .3rem; }
   .reroll:hover { color:var(--accent); }
@@ -219,6 +222,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     <option value="vegetarian">vegetarisch</option>
     <option value="vegan">veganistisch</option>
   </select></label>
+  <label>Keuken<select id="cuisine"><option value="any">alles</option></select></label>
   <label>Onzeker<select id="uncertain">
     <option value="0">uitsluiten</option><option value="1">toestaan</option>
   </select></label>
@@ -282,6 +286,7 @@ function season(r, month){
 // tier: 2 in-season > 1 neutral > 0 out-of-season(only when 'relax') ; -1 excluded
 function tierOf(s, relax){ return s.inSeason?2 : s.neutral?1 : (relax?0:-1); }
 const opts = () => ({ month:+$("month").value, diet:$("diet").value,
+  cuisine:$("cuisine").value,
   unc:$("uncertain").value==="1", relax:$("relax").value==="1",
   restjes:$("restjes").value==="1" });
 
@@ -289,6 +294,7 @@ function rankedPool(usedIds, o, rng){
   const pool=[];
   for(const r of R){
     if(usedIds.has(r.id) || !dietAllows(r.diet,o.diet,o.unc)) continue;
+    if(o.cuisine!=="any" && r.cuisine!==o.cuisine) continue;
     const s=season(r,o.month), t=tierOf(s,o.relax);
     if(t<0) continue;
     pool.push({r, inSeason:s.inSeason, tier:t, rnd:rng()});
@@ -357,6 +363,7 @@ const adultEquiv = () => (+$("adults").value) + (+$("kids").value)*M.household.k
 const fmtQ = n => { const r=Math.round(n*10)/10; return r%1===0 ? r.toFixed(0) : String(r); };
 const esc = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const dietNL = d => ({vegan:"veganistisch",vegetarian:"vegetarisch",omnivore:"met vlees/vis",uncertain:"onzeker"}[d]||d);
+const cuisineNL = c => ({belgian:"Belgisch","western-vegan":"Vegan (westers)",indian:"Indiaas",chinese:"Chinees",greek:"Grieks",onbekend:"onbekend"}[c]||c);
 // full ingredient list + method, collapsed. Only when instructions were exported.
 function recept(r){
   const ings = r.ingredients.map(ing=>{
@@ -428,6 +435,7 @@ function draw(){
       `<span style="margin-left:auto">${lockBtn}${repl}</span></div>`+
       `<div class="meta"><span class="chip base">${esc(p.r.base||"vrij")}</span>${scrapsChip}${tag}`+
       `<span>hero: ${esc(heroes)}</span><span>${dietNL(p.r.diet)}</span>`+
+      `<span class="chip cuisine">${esc(cuisineNL(p.r.cuisine))}</span>`+
       `<span>×${fmtQ(scale)} (${p.r.servings}p)</span></div>`+ scrapsLine + recept(p.r);
     d.querySelector(".lock").onclick=()=>toggleLock(i);
     const rb=d.querySelector(".replace"); if(rb) rb.onclick=()=>replaceOne(i);
@@ -453,8 +461,16 @@ function drawGrocery(){
   const ms=$("month"), now=new Date().getMonth()+1;
   for(let m=1;m<=12;m++){ const o=document.createElement("option");
     o.value=m; o.textContent=M.months[m]; if(m===now)o.selected=true; ms.appendChild(o); }
+  // Cuisine filter: only offer the cuisines actually present, most-common first.
+  const cCount={}; R.forEach(r=>{ cCount[r.cuisine]=(cCount[r.cuisine]||0)+1; });
+  const cs=$("cuisine");
+  Object.keys(cCount).sort((a,b)=>cCount[b]-cCount[a]).forEach(c=>{
+    const o=document.createElement("option");
+    o.value=c; o.textContent=`${cuisineNL(c)} (${cCount[c]})`; cs.appendChild(o); });
   $("adults").value=M.household.adults; $("kids").value=M.household.kids;
-  $("tagline").textContent=`${M.nMains} hoofdgerechten · Belgisch · Velt-seizoenskalender`;
+  const nCuis=Object.keys(cCount).length;
+  $("tagline").textContent=`${M.nMains} hoofdgerechten · `+
+    `${nCuis>1?nCuis+" keukens":"Belgisch"} · Velt-seizoenskalender`;
   $("note").innerHTML=`Gegenereerd ${M.generated}. Volledig offline, voor eigen huishoudelijk gebruik. `+
     `Vergrendel (🔒) gerechten die je wilt houden en klik "Vernieuw open plekken". `+
     `Klik "Recept" voor de volledige bereiding. Seizoensdata is binair (Velt).`;
@@ -463,7 +479,7 @@ function drawGrocery(){
   // month/diet/uncertain change the pool fundamentally -> fresh week;
   // relax refills only the OPEN slots (keeps your locked picks);
   // household size only rescales.
-  ["month","diet","uncertain"].forEach(id=>$(id).addEventListener("change",newWeek));
+  ["month","diet","cuisine","uncertain"].forEach(id=>$(id).addEventListener("change",newWeek));
   ["relax","restjes"].forEach(id=>$(id).addEventListener("change",refillOpen));
   ["adults","kids"].forEach(id=>$(id).addEventListener("change",()=>{ if(WEEK.length) draw(); }));
   newWeek();
